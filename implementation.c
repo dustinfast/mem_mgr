@@ -40,6 +40,7 @@
     
 */
 
+#include <stdio.h>  // debug
 #include <stddef.h>
 #include <sys/mman.h>
 
@@ -109,37 +110,26 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 /* Your helper functions */
 
 void *do_mem_map(size_t length);
-void *do_mem_unmap(void *addr);
+int do_mem_unmap(void *addr);
 
 
 // Linked list "memory node"
-typedef struct mem_obj {
-    int address;        // Address in memory
-    int length;         // Number of bytes
-    struct *mem next;   // Ptr to the next node in the list.
+struct mem_node {
+    int address;            // Address in memory
+    int length;             // Number of bytes
+    struct mem_node *next;   // Ptr to the next node in the list.
 } mem_node;
 
 // Ptr to the "memory nodes" linked list, ordered by address (ASC)
 void *mem_list;
-  
-/* Function to print nodes in a given linked list. fpitr is used 
-   to access the function to be used for printing current node data. 
-   Note that different data types need different specifier in printf() */
-void printList(struct Node *node, void (*fptr)(void *)) 
-{ 
-    while (node != NULL) 
-    { 
-        (*fptr)(node->data); 
-        node = node->next; 
-    } 
-} 
+
         
 // Creates a new mem mapping of size "length".
 // RETURNS: A ptr to the mapped address space, iff success. Else, returns NULL.
 void *do_mem_map(size_t length) {
     int prot = PROT_EXEC | PROT_READ | PROT_WRITE;
     int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-    void  *result = nmap(NULL, length, prot, flags, -1, 0);
+    void *result = mmap(NULL, length, prot, flags, -1, 0);
 
     // TODO: If success, build mem obj and add to linked list
     if (result != MAP_FAILED) {
@@ -150,12 +140,12 @@ void *do_mem_map(size_t length) {
 
 // Unmaps the memory at "addr" from addr[0] to addr[size].
 // RETURNS: 0 on success, else returns -1.
-void *do_mem_unmap(void *addr) {
+int do_mem_unmap(void *addr) {
     int length = 0;
 
     // TODO: Lookup length of this addr according to our mem map
     if (length > 0) {
-        void *result =  munmap(addr, length);
+        int result =  munmap(addr, length);
         if (result != -1) {
             // TODO: Unmap in our memmap
             return result;
@@ -222,7 +212,14 @@ void __free_impl(void *ptr) {
 ////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv) {
-    printf('Done.');
+    char *buf = __malloc_impl(1);
+    if (buf != NULL) {
+        *buf = 'c';
+        printf(buf);
+    } else {
+        printf("failed");
+    }
+
     return 0;
 
 }
