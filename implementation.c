@@ -17,9 +17,9 @@
             __realloc_impl  : behavior = realloc
             __free_imp      : behavior = free
 
-
-        Note: mmap and munmap sys calls are slow - need to reduce num calls
-        by "grouping" them into larger block of mem accesses.
+        Notes: 
+            mmap and munmap sys calls are slow - need to reduce num calls
+            by "grouping" them into larger block of mem accesses.
 
     Notes:
         If you need memset and memcpy, use the naive implementations below.
@@ -108,11 +108,61 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 ////////////////////////////
 /* Your helper functions */
 
-// Define struct
+void *do_mem_map(size_t length);
+void *do_mem_unmap(void *addr);
 
-// Define typedef 
 
-// Global ptr to linked list of currfree mem blocks, ordered by addresses (ASC)
+// Linked list "memory node"
+typedef struct mem_obj {
+    int address;        // Address in memory
+    int length;         // Number of bytes
+    struct *mem next;   // Ptr to the next node in the list.
+} mem_node;
+
+// Ptr to the "memory nodes" linked list, ordered by address (ASC)
+void *mem_list;
+  
+/* Function to print nodes in a given linked list. fpitr is used 
+   to access the function to be used for printing current node data. 
+   Note that different data types need different specifier in printf() */
+void printList(struct Node *node, void (*fptr)(void *)) 
+{ 
+    while (node != NULL) 
+    { 
+        (*fptr)(node->data); 
+        node = node->next; 
+    } 
+} 
+        
+// Creates a new mem mapping of size "length".
+// RETURNS: A ptr to the mapped address space, iff success. Else, returns NULL.
+void *do_mem_map(size_t length) {
+    int prot = PROT_EXEC | PROT_READ | PROT_WRITE;
+    int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+    void  *result = nmap(NULL, length, prot, flags, -1, 0);
+
+    // TODO: If success, build mem obj and add to linked list
+    if (result != MAP_FAILED) {
+        return result;
+    }
+    return NULL;
+}
+
+// Unmaps the memory at "addr" from addr[0] to addr[size].
+// RETURNS: 0 on success, else returns -1.
+void *do_mem_unmap(void *addr) {
+    int length = 0;
+
+    // TODO: Lookup length of this addr according to our mem map
+    if (length > 0) {
+        void *result =  munmap(addr, length);
+        if (result != -1) {
+            // TODO: Unmap in our memmap
+            return result;
+        }
+    }
+    return -1;
+}
 
 /* End of your helper functions */
 /////////////////////////////////
@@ -120,27 +170,59 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 
 //////////////////////////////////////////////////////////////
 /* Start of the actual malloc/calloc/realloc/free functions */
+/*
+   Note: None of the below functions handle managment of our linked list,
+   that is all handled by the helper functions above. 
+*/
 
-void __free_impl(void *);
+void *__malloc_impl(size_t size);
+void __free_impl(void *ptr);
+void *__calloc_impl(size_t nmemb, size_t size);
+void *__realloc_impl(void *ptr, size_t size);
 
+// Allocates "size" bytes of memory in user space.
+// RETURNS: A ptr to the allocated memory on success, else returns NULL.
 void *__malloc_impl(size_t size) {
-  /* STUB */
-  return NULL;
+    if (size > 0) {
+        void *result = do_mem_map(size);
+
+        if (result != MAP_FAILED)
+            return result;
+    }
+    return NULL;
 }
 
-void *__calloc_impl(size_t nmemb, size_t size) {
-  /* STUB */
-  return NULL;  
-}
-
-void *__realloc_impl(void *ptr, size_t size) {
-  /* STUB */
-  return NULL;  
-}
-
+// Frees the memory space pointed to by ptr iff ptr != NULL
 void __free_impl(void *ptr) {
-  /* STUB */
+    if (ptr != NULL)
+        do_mem_unmap(ptr);
 }
+
+// Allocates memory for an array of "nmemb" elements of "size" bytes each.
+// Allocated memory is set to 0.
+// RETURNS: A ptr to the memory iff size and nmemb <= 0, else returns NULL.
+// void *__calloc_impl(size_t nmemb, size_t size) {
+//     if (nmemb <= 0 || size <= 0)
+//         return NULL;
+//     return NULL;  
+// }
+
+// Changes the size of the memory at "ptr" to the given size.
+// Memory contents remain unchanged from start to min(old_sz, size).
+// If ptr is NULL, performs an malloc(size).
+// Else, if size == 0, performs a free(ptr).
+// If ptr points to an area of mem that was moved, peforms a free(ptr).
+// ASSUMES: ptr points to mem previously allocated with one of our functions.
+// void *__realloc_impl(void *ptr, size_t size) {
+//   return NULL;  
+// }
+
 
 /* End of the actual malloc/calloc/realloc/free functions */
 ////////////////////////////////////////////////////////////
+
+int main(int argc, char **argv) {
+    printf('Done.');
+    return 0;
+
+}
