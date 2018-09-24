@@ -30,6 +30,9 @@
           data inside the memory block, not to the memory block itself.
 */
 
+// Global heap ptr
+static void *g_heap = NULL;
+
 // Struct BlockInfo - Information about a memory block
 typedef struct BlockInfo {
   char *start_addr;         // Ptr to the block's start address
@@ -186,8 +189,6 @@ void free_heap(HeapInfo *heap) {
 }
 /* End Helpers ------------------------------------------------------------ */
 /* Begin Debug ------------------------------------------------------------ */
-
-static void *g_heap = NULL;
 
 int main(int argc, char **argv) {
     // void *heap = new_heap(20);
