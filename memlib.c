@@ -65,7 +65,7 @@ typedef struct HeapInfo {
 #define MIN_HEAP_SZ (HEAP_INFO_SZ + MIN_FREE_BLOCK_SZ)
 
 // Define max heap size, in MB.
-#define MAX_HEAP_SZ = 20
+#define MAX_HEAP_SZ 20
 
 // Define heap alignment = 8 bytes, making it 64-bit word-addressable, like so:
 //    ---------------------------
