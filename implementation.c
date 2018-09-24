@@ -109,7 +109,7 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 ////////////////////////////
 /* Your helper functions */
 
-
+#include "memlib.c"
 
 /* End of your helper functions */
 /////////////////////////////////
@@ -122,37 +122,24 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
    that is all handled by the helper functions above. 
 */
 
-void *__malloc_impl(size_t size);
-void __free_impl(void *ptr);
-void *__calloc_impl(size_t nmemb, size_t size);
-void *__realloc_impl(void *ptr, size_t size);
-
 // Allocates "size" bytes of memory in user space.
 // RETURNS: A ptr to the allocated memory on success, else returns NULL.
 void *__malloc_impl(size_t size) {
-    if (size > 0) {
-        void *result = do_mem_map(size);
-
-        if (result != MAP_FAILED)
-            return result;
-    }
-    return NULL;
+    do_malloc(size);
 }
 
 // Frees the memory space pointed to by ptr iff ptr != NULL
 void __free_impl(void *ptr) {
-    if (ptr != NULL)
-        do_mem_unmap(ptr);
 }
 
 // Allocates memory for an array of "nmemb" elements of "size" bytes each.
 // Allocated memory is set to 0.
 // RETURNS: A ptr to the memory iff size and nmemb <= 0, else returns NULL.
-// void *__calloc_impl(size_t nmemb, size_t size) {
-//     if (nmemb <= 0 || size <= 0)
-//         return NULL;
-//     return NULL;  
-// }
+void *__calloc_impl(size_t nmemb, size_t size) {
+    if (nmemb <= 0 || size <= 0)
+        return NULL;
+    return NULL;  
+}
 
 // Changes the size of the memory at "ptr" to the given size.
 // Memory contents remain unchanged from start to min(old_sz, size).
@@ -160,23 +147,11 @@ void __free_impl(void *ptr) {
 // Else, if size == 0, performs a free(ptr).
 // If ptr points to an area of mem that was moved, peforms a free(ptr).
 // ASSUMES: ptr points to mem previously allocated with one of our functions.
-// void *__realloc_impl(void *ptr, size_t size) {
-//   return NULL;  
-// }
+void *__realloc_impl(void *ptr, size_t size) {
+  return NULL;  
+}
 
 
 /* End of the actual malloc/calloc/realloc/free functions */
 ////////////////////////////////////////////////////////////
 
-int main(int argc, char **argv) {
-    char *buf = __malloc_impl(1);
-    if (buf != NULL) {
-        *buf = 'c';
-        printf(buf);
-    } else {
-        printf("failed");
-    }
-
-    return 0;
-
-}
