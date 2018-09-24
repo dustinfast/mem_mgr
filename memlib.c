@@ -33,11 +33,11 @@
 // node when the block is in the heaps's "free" list (a doubly-linked list,
 // sorted ASC, by address).
 typedef struct BlockInfo {
-  char *data_addr;          // Ptr to the start of the block's data
-  char *start_addr;         // Ptr to the block's start address
+  char *data_addr;          // Ptr to the first byte of block's data
   size_t size;              // Size of the block, in words
   size_t in_use;            // Nonzero if block is currently in free list
   size_t prev_in_use;       // Nonzero if prev contiguous block is in free list
+  struct BlockInfo *start_addr;  // Ptr to the block's start address
   struct BlockInfo *next;   // Next block (unused if not curr in free list)
   struct BlockInfo *prev;   // Prev block (unused if not curr in free list)
 } BlockInfo;
@@ -53,14 +53,15 @@ typedef struct HeapInfo {
 } HeapInfo;
 
 // Global heap ptr
-static HeapInfo *g_heap = NULL;
+HeapInfo *g_heap = NULL;
 
 // Denote size of the above structs.
 #define BLOCK_INFO_SZ sizeof(BlockInfo)
 #define HEAP_INFO_SZ sizeof(HeapInfo)
 
-// Denote word size of the current environment
+// Denote word size, and define our heap alignment to match
 #define WORD_SZ sizeof(void*)   // 8 bytes, on a 64-bit machine
+#define HEAP_ALIGN WORD_SZ
 
 // Denote minumum memory block sizes
 #define MIN_BLOCK_SZ (BLOCK_INFO_SZ + WORD_SZ + BLOCK_INFO_SZ)
@@ -68,11 +69,8 @@ static HeapInfo *g_heap = NULL;
 // Denote min size of the heap as one free block plus the HeapInfo header
 #define MIN_HEAP_SZ (HEAP_INFO_SZ + MIN_BLOCK_SZ)
 
-// Define initial heap size, in MB.
+// Define initial heap size, in MB
 #define START_HEAP_SZ 20
-
-// Define heap alignment, so we can keep it nicely aligned by word.
-#define HEAP_ALIGN WORD_SZ
 
 
 /* END Definitions -------------------------------------------------------- */
@@ -142,11 +140,11 @@ int init_heap() {
         return -1;
     
     // Init the first free block
-    first_free->start_addr = (char*)first_free;
+    first_free->start_addr = first_free;
     first_free->data_addr = (char*)first_free + BLOCK_INFO_SZ;
     first_free->size = MIN_BLOCK_SZ;
     first_free->in_use = 0;
-    first_free->prev_in_use = 1;  // First block always sets prev = true
+    first_free->prev_in_use = 1;  // First block always sets prev as in use
     first_free->next = NULL;
     first_free->prev = NULL;
 
@@ -191,15 +189,20 @@ void *get_free_block(size_t size) {
 // Adds the given block into the heap's "free" list.
 // Assumes: Block does not already exist in the "free" list.
 void add_free(BlockInfo *block) {
-    BlockInfo* curr = g_heap->first_free;
+    // If free list empty
+    if (!g_heap->first_free) {
+        g_heap->first_free = block;
+        return;
+    }
 
     // Find insertion point, recalling that "free" list is ASC, by mem address
+    BlockInfo* curr = g_heap->first_free;
     while (curr)
         if (curr->start_addr > block->start_addr)
             break;
         else
             curr = curr->next;
-            
+        
     // Insert the block immediately before the curr block
     curr->prev->next = (BlockInfo*)block->start_addr;
     curr->prev = (BlockInfo*)block->start_addr;
@@ -261,6 +264,7 @@ void *do_malloc(size_t size) {
     rm_free(free_block);
     free_block->in_use = 1;
     printf("*** ALLOCATED BLOCK:\n");  // debug
+    // printf("%d\n", free_block->data_addr);  // debug
     print_block(free_block);    // debug
 
     // Return a ptr to it's data area
@@ -272,10 +276,11 @@ void do_free(void *ptr) {
     if (!ptr)
         return;
     
-    // add_free(ptr);
-    // printf("*** FREED ALLOCATED BLOCK:\n");  // debug
-    // to_free->in_use = 0;
-    // print_block(to_free);            // debug
+    BlockInfo *used_block = (BlockInfo*)((void*)ptr - BLOCK_INFO_SZ);
+    add_free(used_block);
+    used_block->in_use = 0;
+    printf("*** FREED ALLOCATED BLOCK:\n");  // debug
+    print_block(used_block);            // debug
     // TODO: If the heap is empty, free it. It will re-init if needed.
 }
 
@@ -288,9 +293,8 @@ int main(int argc, char **argv) {
     init_heap();
     // print_heap();
     char *test = do_malloc(1);
-    test = "t";
-    // printf(test);
-    // do_free(test);
+    // test = "t";
+    do_free(test);
     free_heap();
 
 }
