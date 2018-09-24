@@ -64,15 +64,15 @@ typedef struct HeapInfo {
 // Denote min size of the heap as one free block plus the HeapInfo header
 #define MIN_HEAP_SZ (HEAP_INFO_SZ + MIN_FREE_BLOCK_SZ)
 
-// Define max heap size, in MB.
-#define MAX_HEAP_SZ 20
+// Define initial heap size, in MB.
+#define START_HEAP_SIZE 20
 
 // Define heap alignment = 8 bytes, making it 64-bit word-addressable, like so:
-//    ---------------------------
-//    |   |   |   |  . . .  |   |
-//    ---------------------------
-//    ^   ^   ^   ^         ^
-//    0   8   16  24        MAX_HEAP_SZ - HEAP_ALIGN
+//    -----------------------
+//    |   |   |   |  . . .  |
+//    -----------------------
+//    ^   ^   ^   ^         
+//    0   8   16  24
 #define HEAP_ALIGN 8
 
 /* END Definitions -------------------------------------------------------- */
@@ -187,9 +187,14 @@ void free_heap(HeapInfo *heap) {
 /* End Helpers ------------------------------------------------------------ */
 /* Begin Debug ------------------------------------------------------------ */
 
+static void *g_heap = NULL;
+
 int main(int argc, char **argv) {
-    void *heap = new_heap(20);
-    free_heap(heap);
+    // void *heap = new_heap(20);
+    if (!g_heap)
+        g_heap = new_heap(START_HEAP_SIZE);
+
+    free_heap(g_heap);
 
 
 }
