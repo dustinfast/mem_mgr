@@ -109,50 +109,7 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 ////////////////////////////
 /* Your helper functions */
 
-void *do_mem_map(size_t length);
-int do_mem_unmap(void *addr);
 
-
-// Linked list "memory node"
-struct mem_node {
-    int address;            // Address in memory
-    int length;             // Number of bytes
-    struct mem_node *next;   // Ptr to the next node in the list.
-} mem_node;
-
-// Ptr to the "memory nodes" linked list, ordered by address (ASC)
-void *mem_list;
-
-        
-// Creates a new mem mapping of size "length".
-// RETURNS: A ptr to the mapped address space, iff success. Else, returns NULL.
-void *do_mem_map(size_t length) {
-    int prot = PROT_EXEC | PROT_READ | PROT_WRITE;
-    int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-    void *result = mmap(NULL, length, prot, flags, -1, 0);
-
-    // TODO: If success, build mem obj and add to linked list
-    if (result != MAP_FAILED) {
-        return result;
-    }
-    return NULL;
-}
-
-// Unmaps the memory at "addr" from addr[0] to addr[size].
-// RETURNS: 0 on success, else returns -1.
-int do_mem_unmap(void *addr) {
-    int length = 0;
-
-    // TODO: Lookup length of this addr according to our mem map
-    if (length > 0) {
-        int result =  munmap(addr, length);
-        if (result != -1) {
-            // TODO: Unmap in our memmap
-            return result;
-        }
-    }
-    return -1;
-}
 
 /* End of your helper functions */
 /////////////////////////////////
