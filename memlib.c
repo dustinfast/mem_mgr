@@ -67,10 +67,9 @@ typedef struct HeapHead {
 HeapHead *g_heap = NULL;
 
 #define START_HEAP_SZ 20                    // Initial heap allocation (mbytes)
-#define WORD_SZ sizeof(void*)               // Architecture's word sz (bytes)
 #define BLOCK_HEAD_SZ sizeof(BlockHead)     // Size of BlockHead struct (bytes)
 #define HEAP_HEAD_SZ sizeof(HeapHead)       // Size of HeapHead struct (bytes)
-#define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + WORD_SZ)  // Min memory block size
+#define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)    // Min mem block sz = head + 1 byte
 
 
 /* END Definitions -------------------------------------------------------- */
@@ -103,6 +102,7 @@ int do_munmap(void *addr, size_t length) {
 // Debug function, prints the given BlockHead's properties.
 void block_print(BlockHead *block) {
     printf("----------\nBlock\n----------\n");
+    printf("Loc: %u\n", block);
     printf("Size: %u\n", block->size);
     printf("SAddr: %u\n", block->start_addr);
     printf("DAddr: %u\n", block->data_addr);
@@ -130,7 +130,7 @@ void heap_print() {
 // Returns: 0 on success, or -1 on error.
 int heap_init() {
     // Determine size reqs
-    size_t heap_bytes_sz = START_HEAP_SZ * 1048576;  // * Size of a mb in bytes
+    size_t heap_bytes_sz = START_HEAP_SZ * (1 << START_HEAP_SZ);
     size_t first_block_sz = heap_bytes_sz - HEAP_HEAD_SZ;
 
     // Allocate the heap and its first free mem block
@@ -154,8 +154,8 @@ int heap_init() {
     g_heap->end_addr = (char*)g_heap + HEAP_HEAD_SZ + first_block_sz;
     g_heap->first_free = first_block;
     
-    printf("\n*** INITIALIZED HEAP:\n");  // debug
-    heap_print();                  // debug
+    printf("\n*** INITIALIZED HEAP:\n");    // debug
+    heap_print();                           // debug
     return 0;
 }
 
@@ -203,7 +203,7 @@ void *block_findfree(size_t size) {
 
 // Adds the given block into the heap's "free" list.
 // Assumes: Block does not already exist in the "free" list.
-void block_tofree(BlockHead *block) {
+void block_tofreelst(BlockHead *block) {
     // If free list empty
     if (!g_heap->first_free) {
         g_heap->first_free = block;
@@ -226,7 +226,7 @@ void block_tofree(BlockHead *block) {
 }
 
 // Removes the given block from the heap's "free" list.
-void block_rmfree(BlockHead *block) {
+void block_rmfreelst(BlockHead *block) {
     BlockHead *next = block->next;
     BlockHead *prev = block->prev;
 
@@ -252,7 +252,7 @@ void block_rmfree(BlockHead *block) {
 /* Begin malloc, calloc, realloc, free ------------------------------------ */
 
 
-// Allocates "size" bytes of memory in user space.
+// Allocates "size" bytes of memory to the requester.
 // RETURNS: A ptr to the allocated memory location on success, else NULL.
 void *do_malloc(size_t size) {
     if (size <= 0)
@@ -261,29 +261,23 @@ void *do_malloc(size_t size) {
     if (!g_heap)        // If heap not yet initialized, do it now
         heap_init();
 
-    // Make room for block header and set to min if needed
-    size += BLOCK_HEAD_SZ;      
-    if (size <= MIN_BLOCK_SZ)
-        size = MIN_BLOCK_SZ;
-    
-    // If not needed, ensure word-boundry alignment by rounding size up
-    else
-        size = WORD_SZ * ((size + WORD_SZ - 1) / WORD_SZ);
+    // Make room for block header
+    size += BLOCK_HEAD_SZ;
 
     // Look for a block of at least this size in the heap's "free" list
     BlockHead* free_block = block_findfree(size);
 
     if (!free_block) {
-        printf("ERROR: No block of requested size found.\n");
+        printf("ERROR: No block of size %u found.\n", size);
         // TODO: If none found, expand heap
         exit(0);
     }
 
-    // TODO: Break up this block, if much bigger than requested
+    // TODO: Break up this block, if > 12% bigger than requested
 
-    // Remove the block from the free list, set its "used" flag
-    block_rmfree(free_block);
-    printf("\n*** ALLOCATED BLOCK:\n");  // debug
+    // Remove the block from the free list
+    block_rmfreelst(free_block);
+    printf("\n*** ALLOCATED BLOCK (%u bytes):\n", size);  // debug
     block_print(free_block);    // debug
 
     // Return a ptr to it's data area
@@ -295,8 +289,9 @@ void do_free(void *ptr) {
     if (!ptr)
         return;
     
+    printf("\nPTR:%u\n", ptr);
     BlockHead *used_block = (BlockHead*)((void*)ptr - BLOCK_HEAD_SZ);
-    block_tofree(used_block);
+    // block_tofreelst(used_block);
 
     printf("\n*** FREED ALLOCATED BLOCK:\n");   // debug
     block_print(used_block);                    // debug
@@ -310,13 +305,14 @@ void do_free(void *ptr) {
 
 
 int main(int argc, char **argv) {
-    heap_init();
-    // heap_print();
-    char *test = do_malloc(1);
-    // test = "t";
-    // write(fileno(stdout), test, sizeof(test));
+    // heap_init();
+    char *t = do_malloc(2);
+    printf("t1: %u\n", t);
+    t = "q";
+    printf("t2: %u\n", t);
+    printf("S: %u\n", sizeof(BlockHead));
 
-    do_free(test);
+    do_free(t);
     heap_free();
 
 }
