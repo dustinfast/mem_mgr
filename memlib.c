@@ -136,9 +136,9 @@ void block_print(BlockHead *block) {
     printf("Size (bytes): %u\n", block->size);
     printf("SAddr: %u\n", block);
     printf("DAddr: %u\n", block->data_addr);
-    printf("Next: %u\n", block->next);
     printf("Prev: %u\n", block->prev);
-    printf("PrevUsed: %d\n", block->prev_in_use);
+    printf("Next: %u\n", block->next);
+    // printf("PrevUsed: %d\n", block->prev_in_use);
 }
 
 // Debug function, prints the global heap's properties.
@@ -153,7 +153,7 @@ void heap_print() {
         block_print(next);
         next = next->next;
     }
-    printf("END OF HEAP\n");
+    // printf("END OF HEAP\n");         // debug
 }
 
 // Inits the global heap with one free memory block of maximal size.
@@ -179,8 +179,8 @@ void heap_init() {
     g_heap->start_addr = (char*)g_heap;
     g_heap->first_free = first_block;
     
-    printf("\n*** INITIALIZED HEAP:\n");    // debug
-    heap_print();                           // debug
+    // printf("\n*** INITIALIZED HEAP:\n");    // debug
+    // heap_print();                           // debug
 }
 
 // Expands the heap by START_HEAP_SZ mbs.
@@ -200,8 +200,8 @@ BlockHead* heap_expand() {
     new_block->prev = NULL;
     new_block->prev_in_use = -1;
 
-    printf("\n *** NEW BLOCK:\n");          // debug
-    block_print(new_block);                 // debug
+    // printf("\n *** NEW BLOCK:\n");          // debug
+    // block_print(new_block);                 // debug
 
     // Denote new size of the heap and add the new block as free
     g_heap->size += START_HEAP_SZ;
@@ -215,7 +215,7 @@ BlockHead* heap_expand() {
 
 // Combines the heap's free contiguous memory blocks
 void heap_squeeze() {
-    printf("\n*** SQUEEZING HEAP:\n");      // debug
+    // printf("\n*** SQUEEZING HEAP:\n");      // debug
     // heap_print();                        // debug
     // TODO: If the heap is empty, free it. It will re-init if needed.
 }
@@ -227,7 +227,10 @@ BlockHead *block_chunk(BlockHead *block, size_t size) {
     // Denoting split addr and resulting sizes
     BlockHead *block2 = (BlockHead*)((char*)block + size);
     size_t b2_size = block->size - size;
-    size_t b1_size = block->size - block2->size;
+    size_t b1_size = block->size - b2_size;
+
+    // printf("B1Sz: %u\n", b1_size);              // debug
+    // printf("B2Sz: %u\n", b2_size);              // debug
 
     // Do the partition if both blocks large enough to be split
     if (b2_size >= MIN_BLOCK_SZ && b1_size >= MIN_BLOCK_SZ) {
@@ -257,17 +260,17 @@ void heap_free() {
     while(g_heap->first_free) {
         
         BlockHead *next =  g_heap->first_free->next;
-        printf("Freeing:");
-        block_print(g_heap->first_free);
+        // printf("Freeing:");
+        // block_print(g_heap->first_free);
         do_munmap(g_heap->first_free, g_heap->first_free->size);
-        printf("freed");
+        // printf("freed");
         // block_print(next);
         // if (!next)
         //     break;
         g_heap->first_free = next;
     }
-    // do_munmap((void*)g_heap, (size_t)g_heap + HEAP_HEAD_SZ);
-    printf("\n*** DONE FREEDING HEAP:\n");      // debug
+    do_munmap((void*)g_heap, (size_t)g_heap + HEAP_HEAD_SZ);
+    printf("\n*** DONE FREEING HEAP:\n");      // debug
 }
 
 
@@ -386,14 +389,18 @@ void *do_malloc(size_t size) {
     if (!free_block)
         free_block = heap_expand();
     
+    // printf("RSz: %u\n", size)                           // debug
+    // printf("BSz: %u\n", free_block->size);              // debug
+
     // Break up this block if it's larger than needed
     if (size < free_block->size)
         free_block = block_chunk(free_block, size);
+    // printf("GotSz: %u\n", free_block->size);                // debug
     
     // Remove the block from the free list
     block_rm_fromfree(free_block);
     
-    printf("\n*** ALLOCATED BLOCK (%u bytes):\n", size);  // debug
+    printf("\n*** ALLOCATED BLOCK (%u bytes):\n", free_block->size);  // debug
     block_print(free_block);                              // debug
 
     // Return a ptr to free block's data area
@@ -420,14 +427,14 @@ void do_free(void *ptr) {
 
 int main(int argc, char **argv) {
     // No fault
-    char *t1 = do_malloc(1048552);      // way oversize
-    char *t2 = do_malloc(1048491);      // oversize
-    char *t3 = do_malloc(1048471);  // undersize
-    
-    // fault
-    // char *t3 = do_malloc(20);
     // char *t1 = do_malloc(1048552);      // way oversize
     // char *t2 = do_malloc(1048491);      // oversize
+    // char *t3 = do_malloc(1048471);  // undersize
+    
+    // fault
+    char *t3 = do_malloc(20);                            // -> 60
+    char *t1 = do_malloc(1048552);      // way oversize     -> 1048592
+    char *t2 = do_malloc(1048491);      // almost oversize  -> 1048531
 
     do_free(t3);
     do_free(t1);
