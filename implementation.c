@@ -109,7 +109,6 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 ////////////////////////////
 /* Your helper functions */
 
-#include "memlib.c"
 
 /* End of your helper functions */
 /////////////////////////////////

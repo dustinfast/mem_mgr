@@ -200,8 +200,8 @@ BlockHead* heap_expand() {
     new_block->prev = NULL;
     new_block->prev_in_use = -1;
 
-    printf("\n *** NEW BLOCK:\n");
-    block_print(new_block);
+    printf("\n *** NEW BLOCK:\n");          // debug
+    block_print(new_block);                 // debug
 
     // Denote new size of the heap and add the new block as free
     g_heap->size += START_HEAP_SZ;
@@ -215,7 +215,7 @@ BlockHead* heap_expand() {
 
 // Combines the heap's free contiguous memory blocks
 void heap_squeeze() {
-    printf("\n*** SQUEEZING HEAP:\n");    // debug
+    printf("\n*** SQUEEZING HEAP:\n");      // debug
     // heap_print();                        // debug
     // TODO: If the heap is empty, free it. It will re-init if needed.
 }
@@ -251,10 +251,10 @@ BlockHead *block_chunk(BlockHead *block, size_t size) {
 
 // Frees the memory associated with the heap
 void heap_free() {
-    printf("\n*** FREEING HEAP:\n");    // debug
-    heap_print();              // debug
+    printf("\n*** FREEING HEAP:\n");            // debug
+    heap_print();                               // debug
     do_munmap(g_heap->start_addr, g_heap->size);  // TODO: seg fault because not contiguous
-    printf("\n*** DONE FREEDING HEAP:\n");    // debug
+    printf("\n*** DONE FREEDING HEAP:\n");      // debug
 }
 
 
@@ -283,7 +283,7 @@ void block_add_tofree(BlockHead *block) {
 
     // If free list is empty, set us as first and return
     if (!g_heap->first_free) {
-        printf("\n*** ADDED TO FREE 'FIRST':\n");      // debug        
+        printf("\n*** ADDED TO FREE 'FIRST':\n");       // debug        
         g_heap->first_free = block;
         return;
     }
@@ -298,7 +298,7 @@ void block_add_tofree(BlockHead *block) {
         
     // If no smaller address found, insert ourselves after the head
     if (!curr) {
-        printf("\n*** ADDED TO FREE 'AFTER':\n");      // debug  
+        printf("\n*** ADDED TO FREE 'AFTER':\n");       // debug  
         g_heap->first_free->next = block;
         block->prev = g_heap->first_free;
 
@@ -322,7 +322,7 @@ void block_add_tofree(BlockHead *block) {
     if (((char*)block + block->size) == (char*)block->next)
         block->next->prev_in_use = 0;
 
-    block_print(block);                           // debug
+    block_print(block);                                 // debug
 
     // Squeeze any contiguous free blocks
     heap_squeeze();
@@ -391,7 +391,6 @@ void *do_malloc(size_t size) {
 void do_free(void *ptr) {
     if (!ptr)
         return;
-    
 
     // Step back to the block's header and add it to the "free" list
     BlockHead *used_block = (BlockHead*)((void*)ptr - BLOCK_HEAD_SZ);
