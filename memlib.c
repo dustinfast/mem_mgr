@@ -296,11 +296,11 @@ void block_add_tofree(BlockHead *block) {
         else
             curr = curr->next;
         
-    // If curr addr is larger than ours, only one item in list. Insert after it.
-    if (curr < block) {
-        printf("\n*** ADDED TO FREE 'AFTER':\n");      // debug        
-        curr->next = block;
-        block->prev = curr;
+    // If no smaller address found, insert ourselves after the head
+    if (!curr) {
+        printf("\n*** ADDED TO FREE 'AFTER':\n");      // debug  
+        g_heap->first_free->next = block;
+        block->prev = g_heap->first_free;
 
     // If inserting ourselves before all other blocks
     } else if (curr == g_heap->first_free) {
@@ -392,6 +392,7 @@ void do_free(void *ptr) {
     if (!ptr)
         return;
     
+
     // Step back to the block's header and add it to the "free" list
     BlockHead *used_block = (BlockHead*)((void*)ptr - BLOCK_HEAD_SZ);
     block_add_tofree(used_block);
@@ -407,13 +408,13 @@ void do_free(void *ptr) {
 
 int main(int argc, char **argv) {
     char *t1 = do_malloc(1048552);      // way oversize
-    // char *t1 = do_malloc(1048491);      // oversize
+    char *t2 = do_malloc(1048491);      // oversize
     // char *t1 = do_malloc(1048471);  // undersize
-    // char *t2 = do_malloc(20);
+    char *t3 = do_malloc(20);
     // char *t3 = do_malloc(15);
-    // do_free(t2);
+    do_free(t2);
     do_free(t1);
-    // do_free(t3);
+    do_free(t3);
     heap_free();
 
 }
