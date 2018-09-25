@@ -68,6 +68,7 @@
     Some perf improvments can still be made - if we add a footer to each mem
     block, we can step backwards through the free list, rather than starting
     from the front.
+    Also, when requesting a heap expansion, new addr is not contiguous
     
 */
 
@@ -99,17 +100,7 @@ HeapHead *g_heap = NULL;
 #define HEAP_HEAD_SZ sizeof(HeapHead)     // Size of HeapHead struct (bytes)
 #define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)  // Min block sz = header + 1 byte
 
-
-// void *do_mmap(size_t size);
-// int do_munmap(void *addr, size_t size);
-// void heap_init();
-// BlockHead *heap_expand();
-// void heap_squeeze();
-// BlockHead *block_chunk(BlockHead *block, size_t size);
-// void heap_free();
-// void *block_findfree(size_t size);
 void block_add_tofree(BlockHead *block);
-// void block_rm_fromfree(BlockHead *block);
 
 
 /* END Definitions -------------------------------------------------------- */
@@ -162,6 +153,7 @@ void heap_print() {
         block_print(next);
         next = next->next;
     }
+    printf("END OF HEAP\n");
 }
 
 // Inits the global heap with one free memory block of maximal size.
@@ -171,6 +163,7 @@ void heap_init() {
     g_heap = do_mmap(START_HEAP_SZ);
     BlockHead *first_block = (BlockHead*)((void*)g_heap + HEAP_HEAD_SZ);
 
+    // Ensure success
     if (!g_heap || !first_block)
         return;
     
@@ -196,20 +189,19 @@ BlockHead* heap_expand() {
     // Allocate the new space as a memory block
     BlockHead *new_block = do_mmap(START_HEAP_SZ);
 
-    if (!new_block) {
-        printf("ERROR");
+    // Ensure success
+    if (!new_block)
         return NULL;
-    }
 
     // Init the new block
     new_block->size = START_HEAP_SZ;
     new_block->data_addr = (char*)new_block + BLOCK_HEAD_SZ;
     new_block->next = NULL;
+    new_block->prev = NULL;
+    new_block->prev_in_use = -1;
 
-    // debug
-    // new_block->prev = g_heap->first_free;
-    // g_heap->first_free->next = new_block;
-    // new_block->prev_in_use = 1;
+    printf("\n *** NEW BLOCK:\n");
+    block_print(new_block);
 
     // Denote new size of the heap and add the new block as free
     g_heap->size += START_HEAP_SZ;
@@ -217,17 +209,19 @@ BlockHead* heap_expand() {
     
     printf("\n*** EXPANDED HEAP:\n");       // debug
     heap_print();                           // debug
+
+    return new_block;
 }
 
 // Combines the heap's free contiguous memory blocks
 void heap_squeeze() {
-    // printf("\n*** SQUEEZING HEAP:\n");    // debug
+    printf("\n*** SQUEEZING HEAP:\n");    // debug
     // heap_print();                        // debug
     // TODO: If the heap is empty, free it. It will re-init if needed.
 }
 
 // Repartitions the given block to the size specified, if able.
-// Assumes: The block is "free", & size specified includes room for header.
+// Assumes: The block is "free" and size given includes room for header.
 // Returns: A ptr to the original block, resized or not, depending on if able.
 BlockHead *block_chunk(BlockHead *block, size_t size) {
     // Denoting split addr and resulting sizes
@@ -249,7 +243,7 @@ BlockHead *block_chunk(BlockHead *block, size_t size) {
         printf("\n*** CHUNKED BLOCKs:\n");      // debug
         heap_print();                           // debug
     } else {
-        printf("didn't chunk");                 // debug
+        printf("\n *** FAILED TO CHUNK");       // debug
     }
 
     return block;
@@ -257,9 +251,10 @@ BlockHead *block_chunk(BlockHead *block, size_t size) {
 
 // Frees the memory associated with the heap
 void heap_free() {
-    printf("\n*** FREED HEAP:\n");    // debug
+    printf("\n*** FREEING HEAP:\n");    // debug
     heap_print();              // debug
-    do_munmap(g_heap->start_addr, g_heap->size);
+    do_munmap(g_heap->start_addr, g_heap->size);  // TODO: seg fault because not contiguous
+    printf("\n*** DONE FREEDING HEAP:\n");    // debug
 }
 
 
@@ -277,17 +272,19 @@ void *block_findfree(size_t size) {
             return curr;
         else
             curr = curr->next;
-    
     return NULL;
 }
 
 // Adds the given block into the heap's "free" list.
 // Assumes: Block does not already exist in the "free" list.
 void block_add_tofree(BlockHead *block) {
+    // Assume prev block in use, we'll double-check it below if needed
+    block->prev_in_use = 1;
+
     // If free list is empty, set us as first and return
     if (!g_heap->first_free) {
+        printf("\n*** ADDED TO FREE 'FIRST':\n");      // debug        
         g_heap->first_free = block;
-        block->prev_in_use = 1;  // First block, so set prev_in_use = 1
         return;
     }
 
@@ -299,14 +296,22 @@ void block_add_tofree(BlockHead *block) {
         else
             curr = curr->next;
         
+    // If curr addr is larger than ours, only one item in list. Insert after it.
+    if (curr < block) {
+        printf("\n*** ADDED TO FREE 'AFTER':\n");      // debug        
+        curr->next = block;
+        block->prev = curr;
+
     // If inserting ourselves before all other blocks
-    if (curr == g_heap->first_free) {
+    } else if (curr == g_heap->first_free) {
+        printf("\n*** ADDED TO FREE as 'HEAD':\n");      // debug        
         block->next = curr;
         curr->prev = block;
-        block->prev_in_use = 1;
         g_heap->first_free = block;
+
     // Else, insert ourselves immediately before the curr block
     } else {
+        printf("\n*** ADDED TO FREE 'BEFORE':\n");      // debug
         curr->prev->next = block;
         block->prev = curr->prev;
         block->next = curr;
@@ -317,7 +322,9 @@ void block_add_tofree(BlockHead *block) {
     if (((char*)block + block->size) == (char*)block->next)
         block->next->prev_in_use = 0;
 
-    // "Squeeze" the free list, if possible
+    block_print(block);                           // debug
+
+    // Squeeze any contiguous free blocks
     heap_squeeze();
 }
 
@@ -328,8 +335,8 @@ void block_rm_fromfree(BlockHead *block) {
 
     // If not at EOL, next node's "prev" becomes the node before us
     if (next) {
-        next->prev_in_use = 1;
         next->prev = prev;
+        next->prev_in_use = 1;  // Also inform it we're now in use
     }
 
     // If we're the head of the list, the next node becomes the new head
@@ -356,19 +363,15 @@ void *do_malloc(size_t size) {
     if (size <= 0)
         return NULL;
         
-    if (!g_heap)        // If heap not yet initialized, do it now
+    if (!g_heap)            // If heap not yet initialized, do it now
         heap_init();
 
     size += BLOCK_HEAD_SZ;  // Make room for block header
 
-    // Find a free block >= size, or expand heap to get one if needed
+    // Find a free block >= size, expanding the heap as needed
     BlockHead* free_block = block_findfree(size);
-    
-    if (!free_block){
-        printf("NEEDS RESIZED");
-        return NULL;
-        // free_block = heap_expand();
-    }
+    if (!free_block)
+        free_block = heap_expand();
     
     // Break up this block if it's larger than needed
     if (size < free_block->size)
