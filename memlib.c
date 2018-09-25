@@ -30,7 +30,7 @@
 
     Walkthrough:
     1. The heap may not exist when a memory allocation is requested. If
-        not, it's initialized to START_HEAP_SZ mbs with a single free memory
+        not, it is initialized to START_HEAP_SZ mbs with a single free memory
         block occupying it's entire "blocks" field. The block's data field
         is then START_HEAP_SIZE - HEAP_HEAD_SZ - BLOCK_HEAD_SIZE bytes wide,
         however it is immediately chunked to serve the current allocation
@@ -49,13 +49,23 @@
         rather than to the headers themselves.
     5. When a free() request is made, we step back BLOCK_HEAD_SZ bytes to the
         start of it's header and again reference it by its header.
-    6. 
-
+    6. If at any time the heap is back to a single free block occupying it's 
+        entire blocks field, the heap is freed. In this way, we:
+            a. Avoid expanding the heap (requiring a syscall) for every 
+                allocation request.
+            b. Ensure that no heaps go un-freed (unless their requestor fails
+                to properly free their memory).
+            c. 
+            
     Design Decisions:
     The kind of list to use (singly-linked/doubly-linked) as well as the 
     structure of the heap and blocks had to be determined beforehand, as they
     dictated the structure of the rest of the application - each possible
     choice had large performance implications.
+    It also had to be decided how to initialize and free the heap.
+    Some perf improvments can still be made - if we add a footer to each mem
+    block, we can step backwards through the free list, rather than starting
+    from the front.
     
 */
 
@@ -174,8 +184,8 @@ int heap_init() {
 // Expands the heap by START_HEAP_SZ mbs.
 // Returns: A ptr to the new mem block in the heap, or null on error.
 BlockHead* heap_expand() {
-    printf("\n*** EXPANDING HEAP:\n");    // debug
-    heap_print();                       // debug
+    printf("\n*** EXPANDING HEAP:\n");      // debug
+    heap_print();                           // debug
     // TODO: Allocate more mem with do_mmap and add it to the heap
 
     // TODO: Compact heap
