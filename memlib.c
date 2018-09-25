@@ -13,36 +13,54 @@
 #include <stddef.h>
 #include <sys/mman.h>
 
-/* BEGIN Definitions ------------------------------------------------------ */
 
-/*  Here we define our heap & memory-block elements, which combine to
-    represent the Heap and Memory Block structures, like so:
+/*  INTRODUCTION: 
+    Our heap & memory-block are structured like so:
 
-     Memory Block        Memory Block            Heap
-    (Unallocated)        (Allocated)        --------------
-    --------------      --------------      |  HeapHead  |      
-    | BlockHead  |      | BlockHead  |      --------------  
-    --------------      --------------      |     ...    |  
-    |    ...     |      |    ...     |      |    (mem    |
-    |   (data    |      |   (data    |      |    blocks) |
-    |    field)  |      |    field)  |      |     ...    |
-    |    ...     |      |    ...     |      |     ...    |
-    --------------      --------------      --------------
+     Memory Block       Memory Block           Heap
+    (Unallocated)       (Allocated)       --------------
+    -------------      -------------      |  HeapHead  |      
+    | BlockHead |      | BlockHead |      --------------  
+    --------------     -------------      |     ...    |  
+    |    ...    |      |    ...    |      |   (blocks  |
+    |   (data   |      |   (data   |      |    field)  |
+    |   field)  |      |   field)  |      |     ...    |
+    |    ...    |      |    ...    |      |     ...    |
+    -------------      -------------      --------------
 
-    Notes:
-    1. Our malloc, etc., functions return ptrs to the start of the data field
-        inside the memory block, not to the memory block itself.
-    2. The heap may not exist when a memory allocation is requested. If
-        not, it is initialized to START_HEAP_SZ MBs, with a single free
-        memory block occupying all it's space. That block's data field
-        is then (START_HEAP_SIZE - HEAP_HEAD_SZ - BLOCK_HEAD_SIZE) bytes
-        wide, but it is immediattely chunked to serve the current, and
-        any sunseqent memory allocation requests.
-    3. If an allocation request cannot be served because a chunk of at least
-        tat size is not available...
-    4. The heap contains a doubly linked list...
+    Walkthrough:
+    1. The heap may not exist when a memory allocation is requested. If
+        not, it's initialized to START_HEAP_SZ mbs with a single free memory
+        block occupying it's entire "blocks" field. The block's data field
+        is then START_HEAP_SIZE - HEAP_HEAD_SZ - BLOCK_HEAD_SIZE bytes wide,
+        however it is immediately chunked to serve the current allocation
+        request (and any sunseqent allocation requests).
+    2. If an allocation request cannot be served because a chunk of at least
+        the requested size (plus it's header) is not available, the heap is
+        expanded with another block of size START_HEAP_SZ.
+    3. The heap header contains a ptr to the head of a doubly linked list of
+        currently unallocated memory blocks. The "nodes" of this list are
+        the headers of each memory block in the list - i.e., each mem block
+        header has a "next" and "prev" ptr.
+    4. We pass around free memory blocks by their header. When a block is not
+        free, we don't do anything with it - it belongs to the caller, who
+        knows nothing about the header because the malloc/calloc/realloc 
+        functions return ptrs to the data fields inside the blocks they serve,
+        rather than to the headers themselves.
+    5. When a free() request is made, we step back BLOCK_HEAD_SZ bytes to the
+        start of it's header and again reference it by its header.
+    6. 
+
+    Design Decisions:
+    The kind of list to use (singly-linked/doubly-linked) as well as the 
+    structure of the heap and blocks had to be determined beforehand, as they
+    dictated the structure of the rest of the application - each possible
+    choice had large performance implications.
     
 */
+
+
+/* BEGIN Definitions ------------------------------------------------------ */
 
 // Struct BlockHead - Memory Block Header. Servers double duty as a linked
 // list node iff the block it describes is in the heaps's "free" list.
@@ -174,18 +192,12 @@ void heap_compact() {
 // Assumes: The block is "free", & size specified includes room for header.
 // Returns: A ptr to the original block, resized or not, depending on if able.
 BlockHead *block_chunk(BlockHead *block, size_t size) {
+    // Split the current block, denoting new sizes
     BlockHead *block2 = (BlockHead*)((char*)block + size);
     block2->size = block->size - size;
     size_t b1_size = block->size - block2->size;
 
-    // debug
-    // printf("\nb1@ %u\n", block);
-    // printf("\nb2@ %u\n", block2);
-    // printf("\nreq sz: %u\n", size);    
-    // printf("\nb1 sz: %u\n", b1_size);
-    // printf("\nb2 sz: %u\n", block2->size);
-
-    // If both blocks are large enough to be split
+    // Enure both blocks are large enough to be split
     if (block2->size >= MIN_BLOCK_SZ && block->size >= MIN_BLOCK_SZ) {
         // Finish chunking
         block->size = b1_size;
@@ -333,14 +345,12 @@ void do_free(void *ptr) {
     if (!ptr)
         return;
     
+    // Step back to the block's header and add it to the "free" list
     BlockHead *used_block = (BlockHead*)((void*)ptr - BLOCK_HEAD_SZ);
-    block_to_free(used_block);
+    block_to_free(used_block);  // Add block back to "free" list and do compact
 
     printf("\n*** FREED ALLOCATED BLOCK:\n");   // debug
     block_print(used_block);                    // debug
-
-    // After adding a free block, combine any other contiguous free blocks
-    heap_compact();
 }
 
 
@@ -351,10 +361,10 @@ void do_free(void *ptr) {
 int main(int argc, char **argv) {
     char *t1 = do_malloc(1048471);
     char *t2 = do_malloc(20);
-    char *t3 = do_malloc(15);
+    // char *t3 = do_malloc(15);
     do_free(t2);
     do_free(t1);
-    do_free(t3);
+    // do_free(t3);
     heap_free();
 
 }
