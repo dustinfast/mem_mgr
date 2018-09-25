@@ -249,11 +249,24 @@ BlockHead *block_chunk(BlockHead *block, size_t size) {
     return block;
 }
 
-// Frees the memory associated with the heap
+// Frees all free memory blocks, and then the heap header.
 void heap_free() {
     printf("\n*** FREEING HEAP:\n");            // debug
     heap_print();                               // debug
-    do_munmap(g_heap->start_addr, g_heap->size);  // TODO: seg fault because not contiguous
+
+    while(g_heap->first_free) {
+        
+        BlockHead *next =  g_heap->first_free->next;
+        printf("Freeing:");
+        block_print(g_heap->first_free);
+        do_munmap(g_heap->first_free, g_heap->first_free->size);
+        printf("freed");
+        // block_print(next);
+        // if (!next)
+        //     break;
+        g_heap->first_free = next;
+    }
+    // do_munmap((void*)g_heap, (size_t)g_heap + HEAP_HEAD_SZ);
     printf("\n*** DONE FREEDING HEAP:\n");      // debug
 }
 
@@ -406,14 +419,20 @@ void do_free(void *ptr) {
 
 
 int main(int argc, char **argv) {
+    // No fault
     char *t1 = do_malloc(1048552);      // way oversize
     char *t2 = do_malloc(1048491);      // oversize
-    // char *t1 = do_malloc(1048471);  // undersize
-    char *t3 = do_malloc(20);
-    // char *t3 = do_malloc(15);
-    do_free(t2);
-    do_free(t1);
+    char *t3 = do_malloc(1048471);  // undersize
+    
+    // fault
+    // char *t3 = do_malloc(20);
+    // char *t1 = do_malloc(1048552);      // way oversize
+    // char *t2 = do_malloc(1048491);      // oversize
+
     do_free(t3);
+    do_free(t1);
+    do_free(t2);
+
     heap_free();
 
 }
