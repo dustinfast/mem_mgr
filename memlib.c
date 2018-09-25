@@ -101,19 +101,19 @@ int do_munmap(void *addr, size_t length) {
 void block_print(BlockHead *block) {
     printf("-----\nBlock\n");
     printf("Size (bytes): %u\n", block->size);
-    printf("SAddr (bit): %u\n", block);
-    printf("DAddr (bit): %u\n", block->data_addr);
-    printf("Next (bit): %u\n", block->next);
-    printf("Prev (bit): %u\n", block->prev);
-    printf("PrevUsed (bit): %d\n", block->prev_in_use);
+    printf("SAddr: %u\n", block);
+    printf("DAddr: %u\n", block->data_addr);
+    printf("Next: %u\n", block->next);
+    printf("Prev: %u\n", block->prev);
+    printf("PrevUsed: %d\n", block->prev_in_use);
 }
 
 // Debug function, prints the given heap's properties.
 void heap_print() {
     printf("-----\nHeap\n");
     printf("Size (bytes): %u\n", g_heap->size);
-    printf("Start (bit): %u\n", g_heap->start_addr);
-    printf("FirstFree (bit): %u\n", g_heap->first_free);
+    printf("Start: %u\n", g_heap->start_addr);
+    printf("FirstFree: %u\n", g_heap->first_free);
 
     BlockHead *next = g_heap->first_free;
     while(next) {
@@ -263,8 +263,9 @@ void block_to_free(BlockHead *block) {
         curr->prev = block;
     }
 
-    // If the next block is contiguous, denote 
-    // while
+    // If the next block is contiguous, inform it we are free
+    if (((char*)block + block->size) == (char*)block->next)
+        block->next->prev_in_use = 0;
 }
 
 // Removes the given block from the heap's "free" list.
@@ -348,12 +349,12 @@ void do_free(void *ptr) {
 
 
 int main(int argc, char **argv) {
-    char *t1 = do_malloc(10);
+    char *t1 = do_malloc(1048471);
     char *t2 = do_malloc(20);
     char *t3 = do_malloc(15);
+    do_free(t2);
     do_free(t1);
     do_free(t3);
-    do_free(t2);
     heap_free();
 
 }
