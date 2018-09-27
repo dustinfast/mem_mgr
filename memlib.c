@@ -94,6 +94,7 @@ HeapHead *g_heap = NULL;
 #define BLOCK_HEAD_SZ sizeof(BlockHead)     // Size of BlockHead struct (bytes)
 #define HEAP_HEAD_SZ sizeof(HeapHead)       // Size of HeapHead struct (bytes)
 #define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)    // Min block sz = header + 1 byte
+#define WORD_SZ sizeof(void*)               // Word size on this architecture
 
 void block_add_tofree(BlockHead *block);
 
@@ -133,26 +134,13 @@ static void *__memcpy(void *dest, const void *src, size_t n) {
   return dest;
 }
 
-// Multiplies a and b and checks for overflow. 
-// Returns: Zero on fail, else nonzero.
+// Sets c to (a * b) iff (a * b) is word-alignable. Else c = 0.
+// Returns: Nonzero on success, else 0.
 int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
-  // If a == 0 or b == 0, no overflow
-  if ((a == ((size_t) 0)) || (b == ((size_t) 0))) {
     *c = a * b;
-    return 1;
-  }
-
-  // Else, multiply and check for overflow with t = a * q + r
-  size_t t, r, q;
-  t = a * b;
-  q = t / a;
-  r = t % a;
-
-  if (r != ((size_t) 0)) return 0;  // If r != 0, overflow
-  if (q != b) return 0;             // If q != b, overflow
-
-  *c = t;                           // Else, no overflow
-  return 1;
+    if (*c % WORD_SZ)
+        *c = 0;
+    return *c;
 }
 
 /* End Predefined Helpers ------------------------------------------------- */
