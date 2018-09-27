@@ -14,8 +14,6 @@
     gcc -fPIC -Wall -g -O0 -c implementation.c
     gcc -fPIC -shared -o memory.so memory.o implementation.o -lpthread
 
-    To try the code out:
-
     export LD_LIBRARY_PATH=`pwd`:"$LD_LIBRARY_PATH"
     export LD_PRELOAD=`pwd`/memory.so 
     export MEMORY_DEBUG=yes
@@ -83,8 +81,8 @@
 
 
 void *__malloc_impl(size_t);
-void *__calloc_impl(size_t, size_t);
-void *__realloc_impl(void *, size_t);
+// void *__calloc_impl(size_t, size_t);
+// void *__realloc_impl(void *, size_t);
 void __free_impl(void *);
 
 static int __memory_print_debug_running = 0;
@@ -142,25 +140,25 @@ void *malloc(size_t size) {
   return ptr;
 }
 
-void *calloc(size_t nmemb, size_t size) {
-  void *ptr;
+// void *calloc(size_t nmemb, size_t size) {
+//   void *ptr;
 
-  pthread_mutex_lock(&memory_management_lock);
-  ptr = __calloc_impl(nmemb, size);
-  pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("calloc(0x%zx, 0x%zx) = %p\n", nmemb, size, ptr);
-  return ptr;
-}
+//   pthread_mutex_lock(&memory_management_lock);
+//   ptr = __calloc_impl(nmemb, size);
+//   pthread_mutex_unlock(&memory_management_lock);
+//   __memory_print_debug("calloc(0x%zx, 0x%zx) = %p\n", nmemb, size, ptr);
+//   return ptr;
+// }
 
-void *realloc(void *old_ptr, size_t size) {
-  void *ptr;
+// void *realloc(void *old_ptr, size_t size) {
+//   void *ptr;
 
-  pthread_mutex_lock(&memory_management_lock);
-  ptr = __realloc_impl(old_ptr, size);
-  pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("realloc(%p, 0x%zx) = %p\n", old_ptr, size, ptr);
-  return ptr;
-}
+//   pthread_mutex_lock(&memory_management_lock);
+//   ptr = __realloc_impl(old_ptr, size);
+//   pthread_mutex_unlock(&memory_management_lock);
+//   __memory_print_debug("realloc(%p, 0x%zx) = %p\n", old_ptr, size, ptr);
+//   return ptr;
+// }
 
 void free(void *ptr) {
   pthread_mutex_lock(&memory_management_lock);

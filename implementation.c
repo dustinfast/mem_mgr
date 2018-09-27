@@ -109,6 +109,7 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 ////////////////////////////
 /* Your helper functions */
 
+#include "memlib.c"
 
 /* End of your helper functions */
 /////////////////////////////////
@@ -129,26 +130,28 @@ void *__malloc_impl(size_t size) {
 
 // Frees the memory space pointed to by ptr iff ptr != NULL
 void __free_impl(void *ptr) {
+    do_free(ptr);
 }
 
 // Allocates memory for an array of "nmemb" elements of "size" bytes each.
 // Allocated memory is set to 0.
 // RETURNS: A ptr to the memory iff size and nmemb <= 0, else returns NULL.
-void *__calloc_impl(size_t nmemb, size_t size) {
-    if (nmemb <= 0 || size <= 0)
-        return NULL;
-    return NULL;  
-}
+// void *__calloc_impl(size_t nmemb, size_t size) {
+//     // if (nmemb <= 0 || size <= 0)
+//     //     return NULL;
+//     // return NULL;  
+//     return calloc(nmemb, size);
+// }
 
-// Changes the size of the memory at "ptr" to the given size.
-// Memory contents remain unchanged from start to min(old_sz, size).
-// If ptr is NULL, performs an malloc(size).
-// Else, if size == 0, performs a free(ptr).
-// If ptr points to an area of mem that was moved, peforms a free(ptr).
-// ASSUMES: ptr points to mem previously allocated with one of our functions.
-void *__realloc_impl(void *ptr, size_t size) {
-  return NULL;  
-}
+// // Changes the size of the memory at "ptr" to the given size.
+// // Memory contents remain unchanged from start to min(old_sz, size).
+// // If ptr is NULL, performs an malloc(size).
+// // Else, if size == 0, performs a free(ptr).
+// // If ptr points to an area of mem that was moved, peforms a free(ptr).
+// // ASSUMES: ptr points to mem previously allocated with one of our functions.
+// void *__realloc_impl(void *ptr, size_t size) {
+//   return realloc(ptr, size);
+// }
 
 
 /* End of the actual malloc/calloc/realloc/free functions */
