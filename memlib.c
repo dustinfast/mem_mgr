@@ -3,7 +3,6 @@
 // TODO:
 //      Macros for better perf
 //      Mem Block footer for better perf
-//      Remove HeadInfo->start_addr (it's redundant)
 //
 // Author: Dustin Fast
  
@@ -96,6 +95,7 @@ typedef struct HeapHead {
 HeapHead *g_heap = NULL;
 
 #define START_HEAP_SZ (1 * 1048576)   // Initial heap sz = mbs * bytes in a mb
+// #define START_HEAP_SZ (1 * 1048576)   // Initial heap sz = mbs * bytes in a mb
 #define BLOCK_HEAD_SZ sizeof(BlockHead)   // Size of BlockHead struct (bytes)
 #define HEAP_HEAD_SZ sizeof(HeapHead)     // Size of HeapHead struct (bytes)
 #define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)  // Min block sz = header + 1 byte
@@ -179,8 +179,8 @@ void heap_init() {
     g_heap->start_addr = (char*)g_heap;
     g_heap->first_free = first_block;
     
-    // printf("\n*** INITIALIZED HEAP:\n");    // debug
-    // heap_print();                           // debug
+    printf("\n*** INITIALIZED HEAP:\n");    // debug
+    heap_print();                           // debug
 }
 
 // Expands the heap by START_HEAP_SZ mbs.
@@ -229,8 +229,11 @@ BlockHead *block_chunk(BlockHead *block, size_t size) {
     size_t b2_size = block->size - size;
     size_t b1_size = block->size - b2_size;
 
-    // printf("B1Sz: %u\n", b1_size);              // debug
-    // printf("B2Sz: %u\n", b2_size);              // debug
+    printf("\n*** CHUNKING:\n");
+    // heap_print();
+    printf("\nReqSz: %u\n", size);              // debug
+    printf("B1Sz: %u\n", b1_size);              // debug
+    printf("B2Sz: %u\n", b2_size);              // debug
 
     // Do the partition if both blocks large enough to be split
     if (b2_size >= MIN_BLOCK_SZ && b1_size >= MIN_BLOCK_SZ) {
@@ -240,13 +243,17 @@ BlockHead *block_chunk(BlockHead *block, size_t size) {
         block2->prev_in_use = 0;
 
         // "Insert" the new block between original block and the next (if any)
+        block2->next = block->next;
         block->next = block2;
         block2->prev = block;
+
+        // Add new block to "free" list
+        block_add_tofree(block2);
         
         printf("\n*** CHUNKED BLOCKs:\n");      // debug
         heap_print();                           // debug
     } else {
-        printf("\n *** FAILED TO CHUNK");       // debug
+        printf("\n *** DIDN'T CHUNK");       // debug
     }
 
     return block;
@@ -258,16 +265,15 @@ void heap_free() {
     heap_print();                               // debug
 
     while(g_heap->first_free) {
-        
-        BlockHead *next =  g_heap->first_free->next;
-        // printf("Freeing:");
-        // block_print(g_heap->first_free);
-        do_munmap(g_heap->first_free, g_heap->first_free->size);
-        // printf("freed");
-        // block_print(next);
-        // if (!next)
-        //     break;
-        g_heap->first_free = next;
+        BlockHead *freeme = g_heap->first_free;
+        g_heap->first_free = g_heap->first_free->next;
+        size_t sz_free = freeme->size;
+        printf("Freeing:");
+        block_print(freeme);
+        printf("SZ: %u", sz_free);
+        do_munmap(freeme, sz_free);
+
+        printf("\nNext: %u\n", g_heap->first_free);
     }
     do_munmap((void*)g_heap, (size_t)g_heap + HEAP_HEAD_SZ);
     printf("\n*** DONE FREEING HEAP:\n");      // debug
@@ -299,7 +305,7 @@ void block_add_tofree(BlockHead *block) {
 
     // If free list is empty, set us as first and return
     if (!g_heap->first_free) {
-        printf("\n*** ADDED TO FREE 'FIRST':\n");       // debug        
+        printf("\n*** ADDED %u TO FREE 'FIRST':\n", block);       // debug        
         g_heap->first_free = block;
         return;
     }
@@ -313,21 +319,21 @@ void block_add_tofree(BlockHead *block) {
             curr = curr->next;
         
     // If no smaller address found, insert ourselves after the head
-    if (!curr) {
-        printf("\n*** ADDED TO FREE 'AFTER':\n");       // debug  
+    if (!curr) { 
+        printf("\n*** ADDED %u TO FREE 'AFTER':\n", block);       // debug  
         g_heap->first_free->next = block;
         block->prev = g_heap->first_free;
 
     // If inserting ourselves before all other blocks
     } else if (curr == g_heap->first_free) {
-        printf("\n*** ADDED TO FREE as 'HEAD':\n");      // debug        
+        printf("\n*** ADDED %u TO FREE as 'HEAD':\n", block);      // debug        
         block->next = curr;
         curr->prev = block;
         g_heap->first_free = block;
 
     // Else, insert ourselves immediately before the curr block
     } else {
-        printf("\n*** ADDED TO FREE 'BEFORE':\n");      // debug
+        printf("\n*** ADDED %u TO FREE 'BEFORE':\n", block);      // debug
         curr->prev->next = block;
         block->prev = curr->prev;
         block->next = curr;
@@ -338,7 +344,8 @@ void block_add_tofree(BlockHead *block) {
     if (((char*)block + block->size) == (char*)block->next)
         block->next->prev_in_use = 0;
 
-    block_print(block);                                 // debug
+    // block_print(block);                                 // debug
+    // heap_print();
 
     // Squeeze any contiguous free blocks
     heap_squeeze();
@@ -383,12 +390,14 @@ void *do_malloc(size_t size) {
         heap_init();
 
     size += BLOCK_HEAD_SZ;  // Make room for block header
+    printf("\n*** REQUESTED %u BYTES.\n", size);  // debug
 
     // Find a free block >= size, expanding the heap as needed
     BlockHead* free_block = block_findfree(size);
-    if (!free_block)
-        free_block = heap_expand();
-    
+    while (!free_block) {
+        heap_expand();
+        free_block = block_findfree(size);
+    }
     // printf("RSz: %u\n", size)                           // debug
     // printf("BSz: %u\n", free_block->size);              // debug
 
@@ -401,7 +410,8 @@ void *do_malloc(size_t size) {
     block_rm_fromfree(free_block);
     
     printf("\n*** ALLOCATED BLOCK (%u bytes):\n", free_block->size);  // debug
-    block_print(free_block);                              // debug
+    // block_print(free_block);                              // debug
+    heap_print();
 
     // Return a ptr to free block's data area
     return free_block->data_addr;
@@ -416,8 +426,8 @@ void do_free(void *ptr) {
     BlockHead *used_block = (BlockHead*)((void*)ptr - BLOCK_HEAD_SZ);
     block_add_tofree(used_block);
 
-    printf("\n*** FREED ALLOCATED BLOCK:\n");   // debug
-    block_print(used_block);                    // debug
+    printf("\n*** FREED ALLOCATED BLOCK: %u\n", used_block);   // debug
+    // block_print(used_block);                    // debug
 }
 
 
@@ -429,16 +439,16 @@ int main(int argc, char **argv) {
     // No fault
     // char *t1 = do_malloc(1048552);      // way oversize
     // char *t2 = do_malloc(1048491);      // oversize
-    // char *t3 = do_malloc(1048471);  // undersize
+    char *t3 = do_malloc(1048471);  // undersize
     
     // fault
-    char *t3 = do_malloc(20);                            // -> 60
-    char *t1 = do_malloc(1048552);      // way oversize     -> 1048592
-    char *t2 = do_malloc(1048491);      // almost oversize  -> 1048531
+    // char *t3 = do_malloc(20);                            // -> 60
+    // char *t1 = do_malloc(1048552);      // way oversize     -> 1048592
+    // char *t2 = do_malloc(1048491);      // almost oversize  -> 1048531
 
+    // do_free(t1);
+    // do_free(t2);
     do_free(t3);
-    do_free(t1);
-    do_free(t2);
 
     heap_free();
 
