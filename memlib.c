@@ -106,15 +106,17 @@ void block_add_tofree(BlockHead *block);
 // Fills the first n bytes at s with c
 // RETURNS: ptr to s
 static void *__memset(void *s, int c, size_t n) {
-  unsigned char *p;
-  size_t i;
+    unsigned char *p = (unsigned char *)s;
 
-  if (n == ((size_t) 0)) return s;
-  for (i=(size_t) 0,p=(unsigned char *)s;
-       i<=(n-((size_t) 1));
-       i++,p++) {
-    *p = (unsigned char) c;
-  }
+    while(n) {
+        *p = (unsigned char) c;
+        p++;
+        n--;
+    }
+
+//   for (int i= 0,p=(unsigned char *)s; i < n; i++,p++) {
+//     *p = (unsigned char) c;
+//   }
   return s;
 }
 
@@ -134,14 +136,6 @@ static void *__memcpy(void *dest, const void *src, size_t n) {
   return dest;
 }
 
-// Sets c to (a * b) iff (a * b) is word-alignable. Else c = 0.
-// Returns: Nonzero on success, else 0.
-int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
-    *c = a * b;
-    if (*c % WORD_SZ)
-        *c = 0;
-    return *c;
-}
 
 /* End Predefined Helpers ------------------------------------------------- */
 /* Begin Mem Helpers ------------------------------------------------------ */
@@ -387,11 +381,12 @@ void *do_malloc(size_t size) {
 }
 
 // Allocates an array of "nmemb" elements of "size" bytes, w/each el = 0.
-// RETURNS: A ptr to the mem addr iff size and nmemb != 0, else returns NULL.
+// RETURNS: A ptr to the mem addr on success, else NULL.
 void *do_calloc(size_t nmemb, size_t size) {
-    if (!__try_size_t_multiply(&size, nmemb, size)) return NULL;
-    BlockHead *block = __memset(do_malloc(size), 0, size);
-    return block;
+    size = nmemb * size;
+    if (size && !(size % WORD_SZ))
+        return __memset(do_malloc(size), 0, size);
+    return NULL;
 }
 
 // Frees the memory space pointed to by ptr iff ptr != NULL
@@ -403,8 +398,6 @@ void do_free(void *ptr) {
 
 // Changes the size of the memory at "ptr" to the given size.
 // Memory contents remain unchanged from start to min(old_sz, size).
-
-// Else, 
 // If ptr points to an area of mem that was moved, peforms a free(ptr).
 // ASSUMES: ptr points to mem previously allocated with one of our functions.
 void *do_realloc(void *ptr, size_t size) {
@@ -441,6 +434,11 @@ int main(int argc, char **argv) {
     // do_free(t3);
     // do_free(t);
 
-    // heap_free();
+    char **t = do_calloc(2, 4);
+    // t[0] = "h";
+    // *t = "hi";
+    printf(*t);
+    do_free(t);
+    heap_free();
 
 }
