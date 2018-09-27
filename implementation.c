@@ -48,60 +48,60 @@
 /////////////////////////////////
 /* Predefined helper functions */
 
-// Fills the first n bytes at s with c
-// RETURNS: ptr to s
-static void *__memset(void *s, int c, size_t n) {
-  unsigned char *p;
-  size_t i;
+// // Fills the first n bytes at s with c
+// // RETURNS: ptr to s
+// static void *__memset(void *s, int c, size_t n) {
+//   unsigned char *p;
+//   size_t i;
 
-  if (n == ((size_t) 0)) return s;
-  for (i=(size_t) 0,p=(unsigned char *)s;
-       i<=(n-((size_t) 1));
-       i++,p++) {
-    *p = (unsigned char) c;
-  }
-  return s;
-}
+//   if (n == ((size_t) 0)) return s;
+//   for (i=(size_t) 0,p=(unsigned char *)s;
+//        i<=(n-((size_t) 1));
+//        i++,p++) {
+//     *p = (unsigned char) c;
+//   }
+//   return s;
+// }
 
-// Copies n bytes from src to dest (mem areas must not overlap)
-// RETURNS: ptr to dest
-static void *__memcpy(void *dest, const void *src, size_t n) {
-  unsigned char *pd;
-  const unsigned char *ps;
-  size_t i;
+// // Copies n bytes from src to dest (mem areas must not overlap)
+// // RETURNS: ptr to dest
+// static void *__memcpy(void *dest, const void *src, size_t n) {
+//   unsigned char *pd;
+//   const unsigned char *ps;
+//   size_t i;
 
-  if (n == ((size_t) 0)) return dest;
-  for (i=(size_t) 0,pd=(unsigned char *)dest,ps=(const unsigned char *)src;
-       i<=(n-((size_t) 1));
-       i++,pd++,ps++) {
-    *pd = *ps;
-  }
-  return dest;
-}
+//   if (n == ((size_t) 0)) return dest;
+//   for (i=(size_t) 0,pd=(unsigned char *)dest,ps=(const unsigned char *)src;
+//        i<=(n-((size_t) 1));
+//        i++,pd++,ps++) {
+//     *pd = *ps;
+//   }
+//   return dest;
+// }
 
-// Multiplies a and b and checks for overflow. 
-// RETURNS: If no overflow, returns 1 after &setting c = a * b
-//          Else, just returns 0
-static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
-  // If a == 0 or b == 0, no overflow
-  if ((a == ((size_t) 0)) ||
-      (a == ((size_t) 0))) {
-    *c = a * b;
-    return 1;
-  }
+// // Multiplies a and b and checks for overflow. 
+// // RETURNS: If no overflow, returns 1 after &setting c = a * b
+// //          Else, just returns 0
+// static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
+//   // If a == 0 or b == 0, no overflow
+//   if ((a == ((size_t) 0)) ||
+//       (b == ((size_t) 0))) {
+//     *c = a * b;
+//     return 1;
+//   }
 
-  // Else, multiply and check for overflow with t = a * q + r
-  size_t t, r, q;
-  t = a * b;
-  q = t / a;
-  r = t % a;
+//   // Else, multiply and check for overflow with t = a * q + r
+//   size_t t, r, q;
+//   t = a * b;
+//   q = t / a;
+//   r = t % a;
 
-  if (r != ((size_t) 0)) return 0;  // If r != 0, overflow
-  if (q != b) return 0;             // If q != b, overflow
+//   if (r != ((size_t) 0)) return 0;  // If r != 0, overflow
+//   if (q != b) return 0;             // If q != b, overflow
 
-  *c = t;                           // Else, no overflow
-  return 1;
-}
+//   *c = t;                           // Else, no overflow
+//   return 1;
+// }
 
 /* End of predefined helper functions */
 ////////////////////////////////////////
@@ -125,7 +125,7 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 // Allocates "size" bytes of memory in user space.
 // RETURNS: A ptr to the allocated memory on success, else returns NULL.
 void *__malloc_impl(size_t size) {
-    do_malloc(size);
+    return do_malloc(size);
 }
 
 // Frees the memory space pointed to by ptr iff ptr != NULL
@@ -136,12 +136,9 @@ void __free_impl(void *ptr) {
 // Allocates memory for an array of "nmemb" elements of "size" bytes each.
 // Allocated memory is set to 0.
 // RETURNS: A ptr to the memory iff size and nmemb <= 0, else returns NULL.
-// void *__calloc_impl(size_t nmemb, size_t size) {
-//     // if (nmemb <= 0 || size <= 0)
-//     //     return NULL;
-//     // return NULL;  
-//     return calloc(nmemb, size);
-// }
+void *__calloc_impl(size_t nmemb, size_t size) {
+    return do_calloc(nmemb, size);
+}
 
 // // Changes the size of the memory at "ptr" to the given size.
 // // Memory contents remain unchanged from start to min(old_sz, size).

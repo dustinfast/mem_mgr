@@ -32,8 +32,8 @@
         not, it is initialized to START_HEAP_SZ mbs with a single free memory
         block occupying it's entire "blocks" field. The block's data field
         is then START_HEAP_SZ - HEAP_HEAD_SZ - BLOCK_HEAD_SZ bytes wide,
-        however it is immediately chunked to serve the current allocation
-        request (and any sunseqent allocation requests).
+        however it is immediately chunked (or expanded) to serve the current
+        allocation request (and any sunseqent allocation requests).
     2. If an allocation request cannot be served because a chunk of at least
         the requested size (plus it's header) is not available, the heap is
         expanded with another block of size START_HEAP_SZ.
@@ -90,23 +90,54 @@ typedef struct HeapHead {
 // Global heap ptr
 HeapHead *g_heap = NULL;
 
-#define START_HEAP_SZ (1 * 1048576)   // Initial heap sz = mbs * bytes in a mb
-#define BLOCK_HEAD_SZ sizeof(BlockHead)   // Size of BlockHead struct (bytes)
-#define HEAP_HEAD_SZ sizeof(HeapHead)     // Size of HeapHead struct (bytes)
-#define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)  // Min block sz = header + 1 byte
+#define START_HEAP_SZ (16 * 1048576)        // Heap megabytes * bytes in a mb
+#define BLOCK_HEAD_SZ sizeof(BlockHead)     // Size of BlockHead struct (bytes)
+#define HEAP_HEAD_SZ sizeof(HeapHead)       // Size of HeapHead struct (bytes)
+#define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)    // Min block sz = header + 1 byte
 
 void block_add_tofree(BlockHead *block);
 
 
 /* END Definitions -------------------------------------------------------- */
-/* Begin Mem Helpers ------------------------------------------------------ */
+/* StartPredefined Helpers ------------------------------------------------ */
+
+
+// Fills the first n bytes at s with c
+// RETURNS: ptr to s
+static void *__memset(void *s, int c, size_t n) {
+  unsigned char *p;
+  size_t i;
+
+  if (n == ((size_t) 0)) return s;
+  for (i=(size_t) 0,p=(unsigned char *)s;
+       i<=(n-((size_t) 1));
+       i++,p++) {
+    *p = (unsigned char) c;
+  }
+  return s;
+}
+
+// Copies n bytes from src to dest (mem areas must not overlap)
+// RETURNS: ptr to dest
+static void *__memcpy(void *dest, const void *src, size_t n) {
+  unsigned char *pd;
+  const unsigned char *ps;
+  size_t i;
+
+  if (n == ((size_t) 0)) return dest;
+  for (i=(size_t) 0,pd=(unsigned char *)dest,ps=(const unsigned char *)src;
+       i<=(n-((size_t) 1));
+       i++,pd++,ps++) {
+    *pd = *ps;
+  }
+  return dest;
+}
 
 // Multiplies a and b and checks for overflow. 
-// RETURNS: If no overflow, returns 1 after setting c = a * b. Else, returns 0
-static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
+// Returns: Zero on fail, else nonzero.
+int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
   // If a == 0 or b == 0, no overflow
-  if ((a == ((size_t) 0)) ||
-      (a == ((size_t) 0))) {
+  if ((a == ((size_t) 0)) || (b == ((size_t) 0))) {
     *c = a * b;
     return 1;
   }
@@ -124,6 +155,10 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
   return 1;
 }
 
+/* End Predefined Helpers ------------------------------------------------- */
+/* Begin Mem Helpers ------------------------------------------------------ */
+
+
 // Allocates a new mem space of "size" bytes using the mmap syscall.
 // Returns: A ptr to the mapped address space, or NULL on fail.
 void *do_mmap(size_t size) {
@@ -131,45 +166,40 @@ void *do_mmap(size_t size) {
     int flags = MAP_PRIVATE | MAP_ANONYMOUS;
     void *result = mmap(NULL, size, prot, flags, -1, 0);
 
-    if (result != MAP_FAILED)
-        return result;
-    return NULL;
+    if (result == MAP_FAILED) result = NULL;
+    return result;
 }
 
 // Unmaps the memory at "addr" of "size" bytes using the munmap syscall.
 // Returns: Nonzero on success, or -1 on fail.
 int do_munmap(void *addr, size_t size) {
-    if (size > 0) {
-        int result =  munmap(addr, size);
-        if (result != -1)
-            return result;
-    }
-    return -1;
+    if (!size) return -1;
+    return munmap(addr, size);
 }
 
-// Debug function, prints the given BlockHead's properties.
-void block_print(BlockHead *block) {
-    printf("-----\nBlock\n");
-    printf("Size (bytes): %u\n", block->size);
-    printf("SAddr: %u\n", block);
-    printf("DAddr: %u\n", block->data_addr);
-    printf("Prev: %u\n", block->prev);
-    printf("Next: %u\n", block->next);
-}
+// // Debug function, prints the given BlockHead's properties.
+// void block_print(BlockHead *block) {
+//     printf("-----\nBlock\n");
+//     printf("Size (bytes): %u\n", block->size);
+//     printf("SAddr: %u\n", block);
+//     printf("DAddr: %u\n", block->data_addr);
+//     printf("Prev: %u\n", block->prev);
+//     printf("Next: %u\n", block->next);
+// }
 
-// Debug function, prints the global heap's properties.
-void heap_print() {
-    printf("-----\nHeap\n");
-    printf("Size (bytes): %u\n", g_heap->size);
-    printf("Start: %u\n", g_heap->start_addr);
-    printf("FirstFree: %u\n", g_heap->first_free);
+// // Debug function, prints the global heap's properties.
+// void heap_print() {
+//     printf("-----\nHeap\n");
+//     printf("Size (bytes): %u\n", g_heap->size);
+//     printf("Start: %u\n", g_heap->start_addr);
+//     printf("FirstFree: %u\n", g_heap->first_free);
 
-    BlockHead *next = g_heap->first_free;
-    while(next) {
-        block_print(next);
-        next = next->next;
-    }
-}
+//     BlockHead *next = g_heap->first_free;
+//     while(next) {
+//         block_print(next);
+//         next = next->next;
+//     }
+// }
 
 // Inits the global heap with one free memory block of maximal size.
 void heap_init() {
@@ -178,9 +208,7 @@ void heap_init() {
     g_heap = do_mmap(START_HEAP_SZ);
     BlockHead *first_block = (BlockHead*)((void*)g_heap + HEAP_HEAD_SZ);
 
-    // Ensure success
-    if (!g_heap || !first_block)
-        return;
+    if (!g_heap || !first_block) return;  // Ensure successful mmmap
     
     // Init the memory block
     first_block->size = first_block_sz;
@@ -195,13 +223,11 @@ void heap_init() {
 }
 
 // Expands the heap by START_HEAP_SZ mbs.
-// Returns: A ptr to the new mem block in the heap, or null on error.
-BlockHead* heap_expand() {
+void heap_expand() {
     // Allocate the new space as a memory block
     BlockHead *new_block = do_mmap(START_HEAP_SZ);
 
-    if (!new_block)
-        return NULL;
+    if (!new_block) return;  // Ensure succesful mmap
 
     // Init the new block
     new_block->size = START_HEAP_SZ;
@@ -212,14 +238,11 @@ BlockHead* heap_expand() {
     // Denote new size of the heap and add the new block as free
     g_heap->size += START_HEAP_SZ;
     block_add_tofree(new_block);
-    
-    return new_block;
 }
 
 // Combines the heap's free contiguous memory blocks
 void heap_squeeze() {
-    if (!g_heap->first_free)
-        return;
+    if (!g_heap->first_free)  return;
 
     BlockHead *curr = g_heap->first_free;
     while(curr->next) {
@@ -235,30 +258,29 @@ void heap_squeeze() {
 // Assumes: The block is "free" and size given includes room for header.
 // Returns: A ptr to the original block, resized or not, depending on if able.
 BlockHead *block_chunk(BlockHead *block, size_t size) {
-    // Denoting split addr and resulting sizes
+    // Denote split address and resulting sizes
     BlockHead *block2 = (BlockHead*)((char*)block + size);
     size_t b2_size = block->size - size;
     size_t b1_size = block->size - b2_size;
 
-    // Do the partition if both blocks large enough to be split
+    // Ensure partitions are large enough to be split
     if (b2_size >= MIN_BLOCK_SZ && b1_size >= MIN_BLOCK_SZ) {
         block->size = b1_size;
         block2->size = b2_size;
         block2->data_addr = (char*)block2 + BLOCK_HEAD_SZ;
 
-        // "Insert" the new block between original block and the next (if any)
+        // Insert the new block between original block and the next (if any)
         block2->next = block->next;
         block->next = block2;
         block2->prev = block;
 
-        // Add new block to "free" list
-        block_add_tofree(block2);
+        block_add_tofree(block2);  // Add the new block to "free" list
     }
 
     return block;
 }
 
-// Frees all free memory blocks, and then the heap header.
+// Frees all "free" memory blocks, and then the heap header itself.
 void heap_free() {
     while(g_heap->first_free) {
         BlockHead *freeme = g_heap->first_free;
@@ -289,7 +311,7 @@ void *block_findfree(size_t size) {
 }
 
 // Adds the given block into the heap's "free" list.
-// Assumes: Block does not already exist in the "free" list.
+// Assumes: Block is valid and does not already exist in the "free" list.
 void block_add_tofree(BlockHead *block) {
     // If free list is empty, set us as first and return
     if (!g_heap->first_free) {
@@ -309,22 +331,22 @@ void block_add_tofree(BlockHead *block) {
     if (!curr) { 
         g_heap->first_free->next = block;
         block->prev = g_heap->first_free;
-
+    }
     // If inserting ourselves before all other blocks
-    } else if (curr == g_heap->first_free) {
+    else if (curr == g_heap->first_free) {
         block->next = curr;
         curr->prev = block;
         g_heap->first_free = block;
-
+    }
     // Else, insert ourselves immediately before the curr block
-    } else {
+    else {
         curr->prev->next = block;
         block->prev = curr->prev;
         block->next = curr;
         curr->prev = block;
     }
 
-    heap_squeeze();  // Squeeze any contiguous free blocks
+    heap_squeeze();  // Combine any contiguous free blocks
 }
 
 // Removes the given block from the heap's "free" list.
@@ -333,9 +355,8 @@ void block_rm_fromfree(BlockHead *block) {
     BlockHead *prev = block->prev;
 
     // If not at EOL, next node's "prev" becomes the node before us
-    if (next) {
+    if (next)
         next->prev = prev;
-    }
 
     // If we're the head of the list, the next node becomes the new head
     if (block == g_heap->first_free)
@@ -345,7 +366,7 @@ void block_rm_fromfree(BlockHead *block) {
     else
         prev->next = next;
 
-    // Clear header info that's no longer relevent
+    // Clear linked list info - it's no longer relevent
     block->prev = NULL;
     block->next = NULL;
 }
@@ -357,14 +378,12 @@ void block_rm_fromfree(BlockHead *block) {
 // Allocates "size" bytes of memory to the requester.
 // RETURNS: A ptr to the allocated memory location on success, else NULL.
 void *do_malloc(size_t size) {
-    if (!size)
-        return NULL;
+    if (!size) return NULL;
 
-    if (!g_heap)
-        heap_init();            // If heap not yet initialized, do it now
+    if (!g_heap) heap_init();   // If heap not yet initialized, do it now
+    size += BLOCK_HEAD_SZ;      // Make room for block header
 
     // Find a free block >= needed size, expanding the heap as needed
-    size += BLOCK_HEAD_SZ;      // Make room for block header first
     BlockHead* free_block = block_findfree(size);
     while (!free_block) {
         heap_expand();
@@ -375,18 +394,43 @@ void *do_malloc(size_t size) {
     if (size < free_block->size)
         free_block = block_chunk(free_block, size);
     
-    block_rm_fromfree(free_block);  // Remove the block from the free list
+    block_rm_fromfree(free_block);  // Remove the block from the "free" list
     return free_block->data_addr;   // Return a ptr to block's data field
+}
+
+// Allocates an array of "nmemb" elements of "size" bytes, w/each el = 0.
+// RETURNS: A ptr to the mem addr iff size and nmemb != 0, else returns NULL.
+void *do_calloc(size_t nmemb, size_t size) {
+    if (!__try_size_t_multiply(&size, nmemb, size)) return NULL;
+    BlockHead *block = __memset(do_malloc(size), 0, size);
+    return block;
 }
 
 // Frees the memory space pointed to by ptr iff ptr != NULL
 void do_free(void *ptr) {
-    if (!ptr)
-        return;
-
-    // Step back to the block's header and add it to the "free" list
+    if (!ptr) return;
     BlockHead *used_block = (BlockHead*)((void*)ptr - BLOCK_HEAD_SZ);
     block_add_tofree(used_block);
+}
+
+// Changes the size of the memory at "ptr" to the given size.
+// Memory contents remain unchanged from start to min(old_sz, size).
+
+// Else, 
+// If ptr points to an area of mem that was moved, peforms a free(ptr).
+// ASSUMES: ptr points to mem previously allocated with one of our functions.
+void *do_realloc(void *ptr, size_t size) {
+    // If ptr is NULL, do an malloc(size)
+    if (!ptr) return do_malloc(size);
+    
+    // If size == 0, do a free(ptr)
+    if (!size) {
+        do_free(ptr);
+        return NULL;
+    }
+    return NULL;
+    // Else, reallocate the mem location
+    // TODO: realloc
 }
 
 
@@ -398,16 +442,17 @@ int main(int argc, char **argv) {
     // No fault
     // char *t1 = do_malloc(1048552);      // way oversize
     // char *t2 = do_malloc(1048491);      // oversize
-    // char *t3 = do_malloc(1048471);  // undersize
+    // // char *t3 = do_malloc(1048471);  // undersize
     
-    char *t3 = do_malloc(20);                            // -> 60
-    char *t1 = do_malloc(1048552);      // way oversize     -> 1048592
-    char *t2 = do_malloc(1048491);      // almost oversize  -> 1048531
+    // char *t3 = do_malloc(20);                            // -> 60
+    // // char *t1 = do_malloc(1048552);      // way oversize     -> 1048592
+    // // char *t2 = do_malloc(1048491);      // almost oversize  -> 1048531
 
-    do_free(t1);
-    do_free(t2);
-    do_free(t3);
+    // do_free(t2);
+    // do_free(t1);
+    // do_free(t3);
+    // do_free(t);
 
-    heap_free();
+    // heap_free();
 
 }
