@@ -462,22 +462,22 @@ void *do_realloc(void *ptr, size_t size) {
 /* Begin Debug ------------------------------------------------------------ */
 
 
-int main(int argc, char **argv) {
-    char *t1 = do_malloc(1048552);      // way oversize
-    char *t2 = do_malloc(1048491);      // oversize
-    char *t3 = do_malloc(1048471);  // undersize
-    do_free(t2);
-    do_free(t1);
-    do_free(t3);
+// int main(int argc, char **argv) {
+//     char *t1 = do_malloc(1048552);      // way oversize
+//     char *t2 = do_malloc(1048491);      // oversize
+//     char *t3 = do_malloc(1048471);  // undersize
+//     do_free(t2);
+//     do_free(t1);
+//     do_free(t3);
     
-    char *t4 = do_malloc(20);                            // -> 60
-    char *t5 = do_malloc(1048552);      // way oversize     -> 1048592
-    char *t6 = do_malloc(1048491);      // almost oversize  -> 1048531
+//     char *t4 = do_malloc(20);                            // -> 60
+//     char *t5 = do_malloc(1048552);      // way oversize     -> 1048592
+//     char *t6 = do_malloc(1048491);      // almost oversize  -> 1048531
 
-    do_free(t4);
-    do_free(t5);
-    do_free(t6);
+//     do_free(t4);
+//     do_free(t5);
+//     do_free(t6);
 
-    heap_free();
+//     heap_free();
 
-}
+// }
