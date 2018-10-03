@@ -145,31 +145,32 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 
 /* Your helper functions */
 
-
+#include "memlib.c"
 
 /* End of your helper functions */
 
 /* Start of the actual malloc/calloc/realloc/free functions */
 
-void __free_impl(void *);
-
+// Allocates "size" bytes of memory in user space.
+// RETURNS: A ptr to the allocated memory on success, else returns NULL.
 void *__malloc_impl(size_t size) {
-  /* STUB */
-  return NULL;
+    return do_malloc(size);
 }
 
+// Frees the memory space pointed to by ptr iff ptr != NULL
+void __free_impl(void *ptr) {
+    do_free(ptr);
+}
+
+// Allocates memory for an array of "nmemb" elements of "size" bytes each.
+// Allocated memory is set to 0.
+// RETURNS: A ptr to the memory iff size and nmemb <= 0, else returns NULL.
 void *__calloc_impl(size_t nmemb, size_t size) {
-  /* STUB */
-  return NULL;  
+    return do_calloc(nmemb, size);
 }
 
 void *__realloc_impl(void *ptr, size_t size) {
-  /* STUB */
-  return NULL;  
-}
-
-void __free_impl(void *ptr) {
-  /* STUB */
+  return do_realloc(ptr, size);
 }
 
 /* End of the actual malloc/calloc/realloc/free functions */
