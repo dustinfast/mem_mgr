@@ -396,11 +396,13 @@ void *do_malloc(size_t size) {
 // RETURNS: A ptr to the mem addr on success, else NULL.
 void *do_calloc(size_t nmemb, size_t size) {
     size = nmemb * size;
-    if (size && !(size % WORD_SZ)) {
-        // If heap not yet initialized, do it now
-        if (!g_heap) heap_init();
 
-        // Map the requested mem
+    if (size) {
+        // Word align size
+        int r = size % WORD_SZ;
+        if (r)
+            size = size + WORD_SZ - r;
+            printf("%d", size);
         return __memset(do_malloc(size), 0, size);
     }
     return NULL;
@@ -437,9 +439,6 @@ void *do_realloc(void *ptr, size_t size) {
         return NULL;
     }
     
-    // If heap not yet initialized, do it now
-    if (!g_heap) heap_init();
-
     // If ptr is NULL, do an malloc(size)
     if (!ptr) return do_malloc(size);
     
@@ -462,22 +461,18 @@ void *do_realloc(void *ptr, size_t size) {
 /* Begin Debug ------------------------------------------------------------ */
 
 
-// int main(int argc, char **argv) {
-//     char *t1 = do_malloc(1048552);      // way oversize
-//     char *t2 = do_malloc(1048491);      // oversize
-//     char *t3 = do_malloc(1048471);  // undersize
-//     do_free(t2);
-//     do_free(t1);
-//     do_free(t3);
+int main(int argc, char **argv) {
+    printf("%u", WORD_SZ);
+    char *t1 = do_malloc(1048552);      // way oversize
+    char *t2 = do_malloc(1048491);      // oversize
+    char *t3 = do_malloc(1048471);  // undersize
+    do_free(t2);
+    do_free(t1);
+    do_free(t3);
     
-//     char *t4 = do_malloc(20);                            // -> 60
-//     char *t5 = do_malloc(1048552);      // way oversize     -> 1048592
-//     char *t6 = do_malloc(1048491);      // almost oversize  -> 1048531
+    char **c = do_calloc(185, 4);
+    do_free(c);
 
-//     do_free(t4);
-//     do_free(t5);
-//     do_free(t6);
+    heap_free();
 
-//     heap_free();
-
-// }
+}
