@@ -398,11 +398,10 @@ void *do_calloc(size_t nmemb, size_t size) {
     size = nmemb * size;
 
     if (size) {
-        // Word align size
+        // Ensure size is word aligned then return ptr to new mem
         int r = size % WORD_SZ;
         if (r)
             size = size + WORD_SZ - r;
-            printf("%d", size);
         return __memset(do_malloc(size), 0, size);
     }
     return NULL;
@@ -462,15 +461,16 @@ void *do_realloc(void *ptr, size_t size) {
 
 
 int main(int argc, char **argv) {
-    printf("%u", WORD_SZ);
     char *t1 = do_malloc(1048552);      // way oversize
     char *t2 = do_malloc(1048491);      // oversize
-    char *t3 = do_malloc(1048471);  // undersize
+    char *t3 = do_malloc(1048471);      // undersize
     do_free(t2);
     do_free(t1);
     do_free(t3);
     
     char **c = do_calloc(185, 4);
+    // c = "t";
+    // printf(c);
     do_free(c);
 
     heap_free();
