@@ -56,32 +56,32 @@
 
 /* Predefined helper functions */
 
-static void *__memset(void *s, int c, size_t n) {
-  unsigned char *p;
-  size_t i;
+// static void *__memset(void *s, int c, size_t n) {
+//   unsigned char *p;
+//   size_t i;
 
-  if (n == ((size_t) 0)) return s;
-  for (i=(size_t) 0,p=(unsigned char *)s;
-       i<=(n-((size_t) 1));
-       i++,p++) {
-    *p = (unsigned char) c;
-  }
-  return s;
-}
+//   if (n == ((size_t) 0)) return s;
+//   for (i=(size_t) 0,p=(unsigned char *)s;
+//        i<=(n-((size_t) 1));
+//        i++,p++) {
+//     *p = (unsigned char) c;
+//   }
+//   return s;
+// }
 
-static void *__memcpy(void *dest, const void *src, size_t n) {
-  unsigned char *pd;
-  const unsigned char *ps;
-  size_t i;
+// static void *__memcpy(void *dest, const void *src, size_t n) {
+//   unsigned char *pd;
+//   const unsigned char *ps;
+//   size_t i;
 
-  if (n == ((size_t) 0)) return dest;
-  for (i=(size_t) 0,pd=(unsigned char *)dest,ps=(const unsigned char *)src;
-       i<=(n-((size_t) 1));
-       i++,pd++,ps++) {
-    *pd = *ps;
-  }
-  return dest;
-}
+//   if (n == ((size_t) 0)) return dest;
+//   for (i=(size_t) 0,pd=(unsigned char *)dest,ps=(const unsigned char *)src;
+//        i<=(n-((size_t) 1));
+//        i++,pd++,ps++) {
+//     *pd = *ps;
+//   }
+//   return dest;
+// }
 
 /* Tries to multiply the two size_t arguments a and b.
 
@@ -97,74 +97,68 @@ static void *__memcpy(void *dest, const void *src, size_t n) {
    the division while making sure that it still does the right 
    thing (which is hard to prove).
 
-*/
-static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
-  size_t t, r, q;
+// */
+// static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
+//   size_t t, r, q;
 
-  /* If any of the arguments a and b is zero, everthing works just fine. */
-  if ((a == ((size_t) 0)) ||
-      (b == ((size_t) 0))) {
-    *c = a * b;
-    return 1;
-  }
+//   /* If any of the arguments a and b is zero, everthing works just fine. */
+//   if ((a == ((size_t) 0)) ||
+//       (a == ((size_t) 0))) {
+//     *c = a * b;
+//     return 1;
+//   }
 
-  /* Here, neither a nor b is zero. 
+//   /* Here, neither a nor b is zero. 
 
-     We perform the multiplication, which may overflow, i.e. present
-     some modulo-behavior.
+//      We perform the multiplication, which may overflow, i.e. present
+//      some modulo-behavior.
 
-  */
-  t = a * b;
+//   */
+//   t = a * b;
 
-  /* Perform Euclidian division on t by a:
+//   /* Perform Euclidian division on t by a:
 
-     t = a * q + r
+//      t = a * q + r
 
-     As we are sure that a is non-zero, we are sure
-     that we will not divide by zero.
+//      As we are sure that a is non-zero, we are sure
+//      that we will not divide by zero.
 
-  */
-  q = t / a;
-  r = t % a;
+//   */
+//   q = t / a;
+//   r = t % a;
 
-  /* If the rest r is non-zero, the multiplication overflowed. */
-  if (r != ((size_t) 0)) return 0;
+//   /* If the rest r is non-zero, the multiplication overflowed. */
+//   if (r != ((size_t) 0)) return 0;
 
-  /* Here the rest r is zero, so we are sure that t = a * q.
+//   /* Here the rest r is zero, so we are sure that t = a * q.
 
-     If q is different from b, the multiplication overflowed.
-     Otherwise we are sure that t = a * b.
+//      If q is different from b, the multiplication overflowed.
+//      Otherwise we are sure that t = a * b.
 
-  */
-  if (q != b) return 0;
-  *c = t;
-  return 1;
-}
+//   */
+//   if (q != b) return 0;
+//   *c = t;
+//   return 1;
+// }
 
 /* End of predefined helper functions */
-
+#include "memlib.c"
 /* Your helper functions */
 
-#include "memlib.c"
 
 /* End of your helper functions */
 
 /* Start of the actual malloc/calloc/realloc/free functions */
 
-// Allocates "size" bytes of memory in user space.
-// RETURNS: A ptr to the allocated memory on success, else returns NULL.
+
 void *__malloc_impl(size_t size) {
     return do_malloc(size);
 }
 
-// Frees the memory space pointed to by ptr iff ptr != NULL
 void __free_impl(void *ptr) {
     do_free(ptr);
 }
 
-// Allocates memory for an array of "nmemb" elements of "size" bytes each.
-// Allocated memory is set to 0.
-// RETURNS: A ptr to the memory iff size and nmemb <= 0, else returns NULL.
 void *__calloc_impl(size_t nmemb, size_t size) {
     return do_calloc(nmemb, size);
 }
