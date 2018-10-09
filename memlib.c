@@ -86,7 +86,8 @@ typedef struct HeapHead {
 // Global heap ptr
 HeapHead *g_heap = NULL;
 
-#define START_HEAP_SZ (16 * 1048576)        // Heap megabytes * bytes in a mb
+#define START_HEAP_SZ (1)         // Heap megabytes * bytes in a mb
+// #define START_HEAP_SZ (1 * 1048576)         // Heap megabytes * bytes in a mb
 #define BLOCK_HEAD_SZ sizeof(BlockHead)     // Size of BlockHead struct (bytes)
 #define HEAP_HEAD_SZ sizeof(HeapHead)       // Size of HeapHead struct (bytes)
 #define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)    // Min block sz = header + 1 byte
@@ -193,19 +194,14 @@ static void *__memcpy(void *dest, const void *src, size_t n) {
   return dest;
 }
 
-static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
+int __try_size_t_multiply(size_t a, size_t b) {
   str_write("** In try multiply...\n");  // debug
 
   size_t t, r, q;
 
   /* If any of the arguments a and b is zero, everthing works just fine. */
-  if ((a == ((size_t) 0)) ||
-      (a == ((size_t) 0))) {
-    *c = a * b;
-
-    str_write("## OK try multiply...\n");  // debug
-    return 1;
-  }
+  if ((a == ((size_t) 0)) || (b == ((size_t) 0)))
+    return 0;
 
   /* Here, neither a nor b is zero. 
 
@@ -227,7 +223,8 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
   r = t % a;
 
   /* If the rest r is non-zero, the multiplication overflowed. */
-  if (r != ((size_t) 0)) return 0;
+  if (r != ((size_t) 0))
+      return 0;
 
   /* Here the rest r is zero, so we are sure that t = a * q.
 
@@ -235,11 +232,11 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
      Otherwise we are sure that t = a * b.
 
   */
-  if (q != b) return 0;
-  *c = t;
+  if (q != b)
+    return 0;
 
   str_write("## OK try multiply...\n");  // debug
-  return 1;
+  return t;
 }
 
 /* End Predefined Helpers ------------------------------------------------- */
@@ -587,22 +584,23 @@ void *do_malloc(size_t size) {
 void *do_calloc(size_t nmemb, size_t size) {
     str_write("** In do_calloc...\n");  // debug
 
-    size_t total_sz = nmemb * size;
+    size_t total_sz = __try_size_t_multiply(nmemb, size);
 
-    // if (__try_size_t_multiply(total_sz, nmemb, size))
-    void *r = __memset(do_malloc(total_sz), 0, total_sz);
+    if (total_sz) {
+        void *r = __memset(do_malloc(total_sz), 0, total_sz);
+        str_write("## OK do_calloc...\n");  // debug    
+        return r;
+    }
     
-    str_write("## OK do_calloc...\n");  // debug    
-    return r;
-    // write(fileno(stdout), "failed", 6);
-    // return NULL;
+    str_write("!! Fail do_calloc...\n");  // debug    
+    return NULL;
 }
 
 /* -- do_free -- */
 // Frees the memory space pointed to by ptr iff ptr != NULL
 void do_free(void *ptr) {
     str_write("** In do_free...\n");  // debug
-    
+
     if (!ptr) return;
 
     // Get ptr to header and add to "free" list
@@ -661,8 +659,9 @@ void *do_realloc(void *ptr, size_t size) {
 
 
 int main(int argc, char **argv) {
-    char *a = do_malloc(55);
-    do_free(a);
+    // char *a = do_calloc(1, 1024);
+    // do_free(a);
 
+    
     return 0;
 }
