@@ -103,7 +103,7 @@
 
 //   /* If any of the arguments a and b is zero, everthing works just fine. */
 //   if ((a == ((size_t) 0)) ||
-//       (a == ((size_t) 0))) {
+//       (b == ((size_t) 0))) {
 //     *c = a * b;
 //     return 1;
 //   }
