@@ -68,7 +68,7 @@
 */
 
 
-/* BEGIN Definitions ------------------------------------------------------ */
+/* Begin Definitions ------------------------------------------------------ */
 
 // Memory Block Header. Servers double duty as a linked list node
 typedef struct BlockHead {
@@ -88,7 +88,7 @@ typedef struct HeapHead {
 // Global heap ptr
 HeapHead *g_heap = NULL;
 
-#define START_HEAP_SZ (16 * 1048576)         // Heap megabytes * bytes in a mb
+#define START_HEAP_SZ (16 * 1048576)        // Heap megabytes * bytes in a mb
 #define BLOCK_HEAD_SZ sizeof(BlockHead)     // Size of BlockHead struct (bytes)
 #define HEAP_HEAD_SZ sizeof(HeapHead)       // Size of HeapHead struct (bytes)
 #define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)    // Min block sz = header + 1 byte
@@ -97,8 +97,8 @@ HeapHead *g_heap = NULL;
 void block_add_tofree(BlockHead *block);
 
 
-/* END Definitions -------------------------------------------------------- */
-/* StartPredefined Helpers ------------------------------------------------ */
+/* End Definitions -------------------------------------------------------- */
+/* Begin Utility Helpers -------------------------------------------------- */
 
 
 /* -- str_len -- */
@@ -110,7 +110,6 @@ size_t str_len(char *arr) {
 
     return length;
 }
-
 
 /* -- str_write -- */
 // Writes the string given by arr to filedescriptor fd.
@@ -136,21 +135,23 @@ int str_write(char *arr) {
     return total_written;
 }
 
+/* -- mem_set -- */
 // Fills the first n bytes at s with c
 // RETURNS: ptr to s
-// static void *__memset(void *s, int c, size_t n) {
-//     char *p = (char *)s;
-//     while(n) {
-//         *p = (char)c;
-//         p++;
-//         n--;
-//     }
-//   return s;
-// }
+static void *mem_set(void *s, int c, size_t n) {
+    char *p = (char *)s;
+    while(n) {
+        *p = (char)c;
+        p++;
+        n--;
+    }
+  return s;
+}
 
+/* -- mem_cpy -- */
 // Copies n bytes from src to dest (mem areas must not overlap)
 // RETURNS: ptr to dest
-static void *__memcpy(void *dest, const void *src, size_t n) {
+static void *mem_cpy(void *dest, const void *src, size_t n) {
     char *pd = dest;
     const char *ps = src;
     while (n) {
@@ -163,41 +164,32 @@ static void *__memcpy(void *dest, const void *src, size_t n) {
     return dest;
 }
 
-static void *__memset(void *s, int c, size_t n) {
-  unsigned char *p;
-  size_t i;
-
-  if (n == ((size_t) 0)) return s;
-  for (i=(size_t) 0,p=(unsigned char *)s;
-       i<=(n-((size_t) 1));
-       i++,p++) {
-    *p = (unsigned char) c;
-  }
-  return s;
-}
-
 /* -- sizet_multiply -- */
 // Multiplies the given icand and iplier.
 // Adapted from __try_size_t_multiply, clauter 2018.
-// RETURNS: (a * b) if the product will fit in a size_t, else 0.
-size_t sizet_multiply(size_t a, size_t b) {
-  if (a == 0 || b == 0)
-    return 0;
+// RETURNS: a * b iff no size_t overflow, else 0. Also returns 0 if a * b = 0.
+static size_t sizet_multiply(size_t a, size_t b) {
+    if (a == 0 || b == 0)
+        return 0;
 
-  size_t t, r, q;
-  t = a * b;
-  q = t / a;
-  r = t % a;
+    // Euclidean division
+    size_t t, q, remnder;
+    t = a * b;
+    q = t / a;
+    remnder = t % a;
 
-  if (r != ((size_t) 0))
-      return 0;
-  if (q != b)
-    return 0;
-  return t;
+    // If overflow
+    if (remnder || q != b)
+        return 0;
+    
+    // No overflow
+    return t;
 }
+
 
 /* End Predefined Helpers ------------------------------------------------- */
 /* Begin Mem Helpers ------------------------------------------------------ */
+
 
 /* -- do_mmap -- */
 // Allocates a new mem space of "size" bytes using the mmap syscall.
@@ -326,7 +318,6 @@ void heap_free() {
 
     do_munmap((void*)g_heap, (size_t)g_heap + HEAP_HEAD_SZ);
     g_heap = NULL;
-
 }
 
 /* -- heap_squeeze -- */
@@ -358,6 +349,7 @@ void heap_squeeze() {
 void *block_findfree(size_t size) {
     BlockHead *curr = g_heap->first_free;
     
+    // Find and return the first free mem block of at least the given size
     while (curr) {
         if (curr->size >= size)
             return curr;
@@ -365,7 +357,7 @@ void *block_findfree(size_t size) {
             curr = curr->next;
     }
 
-    // If no free block found, expand the heap to get one
+    // Else, if no free block found, expand the heap to get one
     return heap_expand(size);
 }
 
@@ -381,24 +373,25 @@ void block_add_tofree(BlockHead *block) {
 
     // Else, find list insertion point (recall list is sorted ASC by address)
     BlockHead *curr = g_heap->first_free;
-    while (curr) {
+    while (curr)
         if (curr > block)
             break;
         else
             curr = curr->next;
-    }
         
     // If no smaller address found, insert ourselves after the head
     if (!curr) { 
         g_heap->first_free->next = block;
         block->prev = g_heap->first_free;
     }
+
     // Else if inserting ourselves before all other blocks
     else if (curr == g_heap->first_free) {
         block->next = curr;
         curr->prev = block;
         g_heap->first_free = block;
     }
+
     // Else, insert ourselves immediately before the curr block
     else {
         curr->prev->next = block;
@@ -475,7 +468,7 @@ void *do_calloc(size_t nmemb, size_t size) {
     size_t total_sz = sizet_multiply(nmemb, size);
 
     if (total_sz)
-        return __memset(do_malloc(total_sz), 0, total_sz);
+        return mem_set(do_malloc(total_sz), 0, total_sz);
     return NULL;
 }
 
@@ -505,13 +498,13 @@ void do_free(void *ptr) {
 // Changes the size of the allocated memory at "ptr" to the given size.
 // Returns: Ptr to the mapped mem address on success, else NULL.
 void *do_realloc(void *ptr, size_t size) {
-    // If size == 0, do a free(ptr)
+    // If size == 0, free mem at the given ptr
     if (!size) {
         do_free(ptr);
         return NULL;
     }
     
-    // If ptr is NULL, do an malloc(size)
+    // Else if ptr is NULL, do an malloc(size)
     if (!ptr)
         return do_malloc(size);
     
@@ -523,7 +516,7 @@ void *do_realloc(void *ptr, size_t size) {
     if (size > old_block->size)
         size = old_block->size;
 
-    __memcpy(new_block, ptr, cpy_len);
+    mem_cpy(new_block, ptr, cpy_len);
     do_free(ptr);
 
     return new_block;
@@ -532,6 +525,7 @@ void *do_realloc(void *ptr, size_t size) {
 
 /* End malloc, calloc, realloc, free -------------------------------------- */
 /* Begin Test Code -------------------------------------------------------- */
+
 
 /* --- main --- */
 // Tests the do_calloc/do_realloc/do_free functions wholistically 
