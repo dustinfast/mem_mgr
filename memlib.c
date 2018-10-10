@@ -86,8 +86,8 @@ typedef struct HeapHead {
 // Global heap ptr
 HeapHead *g_heap = NULL;
 
-#define START_HEAP_SZ (1)         // Heap megabytes * bytes in a mb
 // #define START_HEAP_SZ (1 * 1048576)         // Heap megabytes * bytes in a mb
+#define START_HEAP_SZ (1)         // Heap megabytes * bytes in a mb
 #define BLOCK_HEAD_SZ sizeof(BlockHead)     // Size of BlockHead struct (bytes)
 #define HEAP_HEAD_SZ sizeof(HeapHead)       // Size of HeapHead struct (bytes)
 #define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)    // Min block sz = header + 1 byte
@@ -194,7 +194,7 @@ static void *__memcpy(void *dest, const void *src, size_t n) {
   return dest;
 }
 
-int __try_size_t_multiply(size_t a, size_t b) {
+size_t __try_size_t_multiply(size_t a, size_t b) {
   str_write("** In try multiply...\n");  // debug
 
   size_t t, r, q;
@@ -456,10 +456,13 @@ void *block_findfree(size_t size) {
     BlockHead *curr = g_heap->first_free;
     
     while (curr) {
-        if (curr->size >= size)
+        if (curr->size >= size) {
+            str_write("## OK block_findfree...\n");  // debug
             return curr;
-        else
+        }
+        else {
             curr = curr->next;
+        }
     }
 
     // If no free block found, expand the heap to get one
@@ -659,9 +662,41 @@ void *do_realloc(void *ptr, size_t size) {
 
 
 int main(int argc, char **argv) {
-    // char *a = do_calloc(1, 1024);
-    // do_free(a);
+    // calloc test
+    char *currline = do_malloc(2);
+    char **queue = do_calloc(2, 8);
+    char *sc = currline;
+    char **sq = queue;
 
+    *currline = 'h';
+    currline++;
+    *currline = 'i';
+    currline++;
+    *currline = '\0';
+    
+    *queue = sc;
+    queue++;
+
+    currline = do_malloc(3);
+    sc = currline;
+    *currline = 'b';
+    currline++;
+    *currline = 'y';
+    currline++;
+    *currline = 'e';
+    currline++;
+    *currline = '\0';
+    
+    *queue = sc;
+    
+    for (int i = 0; i < 2; i++) {
+        str_write(*sq);
+        str_write("\n");
+        do_free(*sq);
+        sq++;
+    }
+    str_write("Done iterating");
+    do_free(queue);
     
     return 0;
 }
