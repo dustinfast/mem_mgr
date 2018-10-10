@@ -1,9 +1,7 @@
 // Defs and helper functions of the memory management system.
 //
 // TODO:
-//      Finish docstrings
 //      static qualifers?
-//      Ensure heap_free called appropriately
 //
 // Author: Dustin Fast
  
@@ -56,15 +54,6 @@
         entire blocks field, the heap is freed. In this way, we:
             a. Avoid making a syscall for every allocation request.
             b. Ensure that all mem is freed (assuming its all released to us).
-            
-    Design Decisions:
-    The kind of list to use (singly-linked/doubly-linked) as well as the 
-    structure of the heap and blocks had to be determined beforehand, as they
-    dictated the structure of the rest of the application - each possible
-    choice had performance implications.
-    When requesting a heap expansion, new addr is not contiguous, this caused 
-    issues initially.
-    
 */
 
 
