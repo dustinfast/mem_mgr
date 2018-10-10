@@ -15,7 +15,7 @@ Our heap and memory blocks are structured like so:
 |    ...    |      |    ...    |      |     ...    |
 -------------      -------------      --------------
                                       Note: 'blocks field' not
-                                      necessarily contiguos in
+                                      necessarily contiguous in
                                       memory.
 ```
 
