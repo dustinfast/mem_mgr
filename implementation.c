@@ -61,8 +61,7 @@
 /* End of predefined helper functions */
 
 /* Your helper functions */
-
-/* Begin Definitions ------------------------------------------------------ */
+/* Begin Definitions ----------------------------------------------------DF */
 
 // Memory Block Header. Servers double duty as a linked list node
 typedef struct BlockHead {
@@ -91,43 +90,9 @@ HeapHead *g_heap = NULL;
 void block_add_tofree(BlockHead *block);
 
 
-/* End Definitions -------------------------------------------------------- */
-/* Begin Utility Helpers -------------------------------------------------- */
+/* End Definitions ------------------------------------------------------DF */
+/* Begin Utility Helpers ------------------------------------------------DF */
 
-
-// /* -- str_len -- */
-// // Returns the length of the given null-terminated "string".
-// size_t str_len(char *arr) {
-//     int length = 0;
-//     for (char *c = arr; *c != '\0'; c++)
-//         length++;
-
-//     return length;
-// }
-
-// /* -- str_write -- */
-// // Writes the string given by arr to filedescriptor fd.
-// // RETURNS: The number of bytes written, or -1 on error.
-// int str_write(char *arr) {
-//     size_t curr_write = 0;
-//     size_t total_written = 0;
-//     size_t char_count = str_len(arr);
-
-//     // If empty string , do nothing
-//     if (!char_count) 
-//         return 0;
-
-//     // Write string to the given file descriptor (note ptr arith in write()).
-//     while (total_written < char_count) {
-//         curr_write = write(fileno(stdout), arr + total_written, char_count - total_written);
-        
-//         if (curr_write < 0)
-//             return -1; // on error
-//         total_written += curr_write;
-//     }
-
-//     return total_written;
-// }
 
 /* -- mem_set -- */
 // Fills the first n bytes at s with c
@@ -181,8 +146,8 @@ static size_t sizet_multiply(size_t a, size_t b) {
 }
 
 
-/* End Predefined Helpers ------------------------------------------------- */
-/* Begin Mem Helpers ------------------------------------------------------ */
+/* End Utility Helpers --------------------------------------------------DF */
+/* Begin Mem Helpers ----------------------------------------------------DF */
 
 
 /* -- do_mmap -- */
@@ -333,8 +298,8 @@ void heap_squeeze() {
 }
 
 
-/* End Mem Helpers -------------------------------------------------------- */
-/* Begin Linked List Helpers ---------------------------------------------- */
+/* End Mem Helpers ------------------------------------------------------DF */
+/* Begin Linked List Helpers --------------------------------------------DF */
 
 
 /* -- block_findfree -- */
@@ -421,8 +386,8 @@ void block_rm_fromfree(BlockHead *block) {
 }
 
 
-/* End Linked List Helpers ------------------------------------------------ */
-/* Begin malloc, calloc, realloc, free ------------------------------------ */
+/* End Linked List Helpers ----------------------------------------------DF */
+/* Begin malloc, calloc, realloc, free ----------------------------------DF */
 
 
 /* -- do_malloc -- */
@@ -516,20 +481,17 @@ void *do_realloc(void *ptr, size_t size) {
     return new_block;
 }
 
-
-/* End malloc, calloc, realloc, free -------------------------------------- */
-
+/* End malloc, calloc, realloc, free ------------------------------------DF */
 /* End of your helper functions */
 
 /* Start of the actual malloc/calloc/realloc/free functions */
 
+void __free_impl(void *ptr) {
+    do_free(ptr);
+}
 
 void *__malloc_impl(size_t size) {
     return do_malloc(size);
-}
-
-void __free_impl(void *ptr) {
-    do_free(ptr);
 }
 
 void *__calloc_impl(size_t nmemb, size_t size) {
