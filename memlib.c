@@ -489,7 +489,7 @@ void do_free(void *ptr) {
         curr = curr->next ;
     }
 
-    // If total sz free == heap size, free the heap - it reinits as needed
+    // If total sz free == heap size, free the heap (it will re-init if needed)
     if (free_sz == g_heap->size - HEAP_HEAD_SZ)
         heap_free();
 }
@@ -536,6 +536,7 @@ int main(int argc, char **argv) {
 
     // Array of all strings
     char **arr = do_calloc(2, 8);
+    char **arr_freeme = arr;
     char **arr_start = arr;
 
     // Create line 1, reallocating room for each new char
@@ -578,7 +579,7 @@ int main(int argc, char **argv) {
         do_free(*arr_start);
         arr_start++;
     }
-    do_free(arr);
+    do_free(arr_freeme);
     
     return 0;
 }
