@@ -309,12 +309,11 @@ void *block_findfree(size_t size) {
     BlockHead *curr = g_heap->first_free;
     
     // Find and return the first free mem block of at least the given size
-    while (curr) {
+    while (curr)
         if (curr->size >= size)
             return curr;
         else
             curr = curr->next;
-    }
 
     // Else, if no free block found, expand the heap to get one
     return heap_expand(size);
