@@ -2,6 +2,8 @@
 //
 // TODO:
 //      Macros for better perf?
+//      static qualifers?
+//      Ensure heap_free called appropriately
 //
 // Author: Dustin Fast
  
@@ -86,12 +88,12 @@ typedef struct HeapHead {
 // Global heap ptr
 HeapHead *g_heap = NULL;
 
-// #define START_HEAP_SZ (1 * 1048576)         // Heap megabytes * bytes in a mb
-#define START_HEAP_SZ (1)         // Heap megabytes * bytes in a mb
+// #define START_HEAP_SZ (16 * 1048576)         // Heap megabytes * bytes in a mb
 #define BLOCK_HEAD_SZ sizeof(BlockHead)     // Size of BlockHead struct (bytes)
 #define HEAP_HEAD_SZ sizeof(HeapHead)       // Size of HeapHead struct (bytes)
 #define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)    // Min block sz = header + 1 byte
 #define WORD_SZ sizeof(void*)               // Word size on this architecture
+#define START_HEAP_SZ HEAP_HEAD_SZ + MIN_BLOCK_SZ + 1  // debug
 
 void block_add_tofree(BlockHead *block);
 
@@ -147,19 +149,25 @@ int str_write(char *arr) {
 //   return s;
 // }
 
-// // Copies n bytes from src to dest (mem areas must not overlap)
-// // RETURNS: ptr to dest
-// static void *__memcpy(void *dest, const void *src, size_t n) {
-//     unsigned char *pd = (unsigned char *)dest;
-//     const unsigned char *ps = (const unsigned char *)src;
-//     while (n) {
-//         *pd = *ps;
-//         pd++;
-//         ps++;
-//         n--;
-//     }
-//     return dest;
-// }
+// Copies n bytes from src to dest (mem areas must not overlap)
+// RETURNS: ptr to dest
+static void *__memcpy(void *dest, const void *src, size_t n) {
+    str_write("** In memcpy...\n");  // debug
+
+    char *pd = dest;
+    const char *ps = src;
+    while (n) {
+        *pd = *ps;
+        str_write(pd);  // debug
+        pd++;
+        ps++;
+        n--;
+    }
+
+    str_write("** OK memcpy...\n");  // debug
+
+    return dest;
+}
 
 static void *__memset(void *s, int c, size_t n) {
   str_write("** In memset...\n");  // debug
@@ -177,22 +185,22 @@ static void *__memset(void *s, int c, size_t n) {
   return s;
 }
 
-static void *__memcpy(void *dest, const void *src, size_t n) {
-  str_write("** In memcpy...\n");  // debug
+// static void *__memcpy(void *dest, const void *src, size_t n) {
+//   str_write("** In memcpy...\n");  // debug
 
-  unsigned char *pd;
-  const unsigned char *ps;
-  size_t i;
+//   unsigned char *pd;
+//   const unsigned char *ps;
+//   size_t i;
 
-  if (n == ((size_t) 0)) return dest;
-  for (i=(size_t) 0,pd=(unsigned char *)dest,ps=(const unsigned char *)src;
-       i<=(n-((size_t) 1));
-       i++,pd++,ps++) {
-    *pd = *ps;
-  }
-  str_write("## OK memcpy...\n");  // debug
-  return dest;
-}
+//   if (n == ((size_t) 0)) return dest;
+//   for (i=(size_t) 0,pd=(unsigned char *)dest,ps=(const unsigned char *)src;
+//        i<=(n-((size_t) 1));
+//        i++,pd++,ps++) {
+//     *pd = *ps;
+//   }
+//   str_write("## OK memcpy...\n");  // debug
+//   return dest;
+// }
 
 size_t __try_size_t_multiply(size_t a, size_t b) {
   str_write("** In try multiply...\n");  // debug
@@ -243,7 +251,7 @@ size_t __try_size_t_multiply(size_t a, size_t b) {
 /* Begin Mem Helpers ------------------------------------------------------ */
 
 
-// // Debug function, prints the given BlockHead's properties.
+// Debug function, prints the given BlockHead's properties.
 // void block_print(BlockHead *block) {
 //     printf("-----\nBlock\n");
 //     printf("Size (bytes): %u\n", block->size);
@@ -312,8 +320,11 @@ void heap_init() {
     g_heap = do_mmap(START_HEAP_SZ);
     BlockHead *first_block = (BlockHead*)((void*)g_heap + HEAP_HEAD_SZ);
 
-    if (!g_heap || !first_block) return;  // Ensure successful mmmap
-    
+    if (!g_heap || !first_block) {
+        str_write("!! Fail in heap_init...\n");  // debug
+        return;  // Ensure successful mmmap
+    }
+
     // Init the memory block
     first_block->size = first_block_sz;
     first_block->data_addr = (char*)first_block + BLOCK_HEAD_SZ;
@@ -343,7 +354,7 @@ BlockHead *heap_expand(size_t size) {
     BlockHead *new_block = do_mmap(size);
 
     if (!new_block) {
-        str_write("!! Fail heap_init...\n");  // debug
+        str_write("!! Fail in heap_init...\n");  // debug
          return NULL;  // Ensure succesful mmap
     }
 
@@ -373,6 +384,11 @@ BlockHead *block_chunk(BlockHead *block, size_t size) {
     size_t b2_size = block->size - size;
     size_t b1_size = block->size - b2_size;
     
+    if (!block2) {
+        str_write("!! Fail in block_chunk...\n");  // debug
+         return NULL;  // Ensure succesful mmap
+    }
+    
     // Ensure partitions are large enough to be split
     if (b2_size >= MIN_BLOCK_SZ && b1_size >= MIN_BLOCK_SZ) {
         block->size = b1_size;
@@ -385,6 +401,8 @@ BlockHead *block_chunk(BlockHead *block, size_t size) {
         block2->prev = block;
 
         block_add_tofree(block2);  // Add the new block to "free" list
+    } else {
+        str_write("## Didn't chunk in block_chunk...\n");  // debug
     }
 
     str_write("## OK block_chunk...\n");  // debug
@@ -481,6 +499,8 @@ void block_add_tofree(BlockHead *block) {
     // If free list is empty, set us as first and return
     if (!g_heap->first_free) {
         g_heap->first_free = block;
+    
+        str_write("## OK block_addtofree...\n");  // debug
         return;
     }
 
@@ -573,7 +593,6 @@ void *do_malloc(size_t size) {
     // Break up this block if it's larger than needed
     if (size < free_block->size)
         free_block = block_chunk(free_block, size);
-    
     // Remove block from the "free" list and return ptr to its data field
     block_rm_fromfree(free_block);
 
@@ -628,7 +647,7 @@ void do_free(void *ptr) {
 // Changes the size of the allocated memory at "ptr" to the given size.
 // Returns: Ptr to the mapped mem address on success, else NULL.
 void *do_realloc(void *ptr, size_t size) {
-    str_write("** In do_realloc...\n");  // debug
+    str_write("\n** In do_realloc...\n");  // debug
     // If size == 0, do a free(ptr)
     if (!size) {
         do_free(ptr);
@@ -640,16 +659,16 @@ void *do_realloc(void *ptr, size_t size) {
         str_write("## OK do_realloc...\n");  // debug
         return do_malloc(size);
     }
-
+    
     // Else, reallocate the mem location
     BlockHead *new_block = do_malloc(size);
     BlockHead *old_block = block_getheader(ptr);
 
     size_t cpy_len = size;
-    if (cpy_len > old_block->size)
-        cpy_len = old_block->size;
+    if (size > old_block->size)
+        size = old_block->size;
 
-    __memcpy(new_block, old_block, cpy_len);
+    __memcpy(new_block, ptr, cpy_len);
     do_free(ptr);
 
     str_write("## OK do_realloc...\n");  // debug
@@ -658,27 +677,41 @@ void *do_realloc(void *ptr, size_t size) {
 
 
 /* End malloc, calloc, realloc, free -------------------------------------- */
-/* Begin Debug ------------------------------------------------------------ */
+/* Begin Test Code -------------------------------------------------------- */
 
-
+/* --- main --- */
+// Tests the do_calloc/do_realloc/do_free functions wholistically 
 int main(int argc, char **argv) {
-    // calloc test
-    char *currline = do_malloc(2);
-    char **queue = do_calloc(2, 8);
-    char *sc = currline;
-    char **sq = queue;
+    // "string" container
+    char *currline = do_malloc(0);;
+    char *curr_start = currline;
 
+    // Array of all strings
+    char **arr = do_calloc(2, 8);
+    char **arr_start = arr;
+
+    // Create line 1, reallocating room for each new char
+    currline = do_malloc(1);
     *currline = 'h';
+
+    currline = do_realloc(currline, 2);
+    curr_start = currline;
     currline++;
     *currline = 'i';
+
+    currline = do_realloc(curr_start, 3);
+    curr_start = currline;
+    currline++;
     currline++;
     *currline = '\0';
     
-    *queue = sc;
-    queue++;
+    // Append line 1 to array
+    *arr = curr_start;
+    arr++;
 
+    // Create line 2
     currline = do_malloc(3);
-    sc = currline;
+    curr_start = currline;
     *currline = 'b';
     currline++;
     *currline = 'y';
@@ -687,16 +720,17 @@ int main(int argc, char **argv) {
     currline++;
     *currline = '\0';
     
-    *queue = sc;
+    // Append line 2 to array
+    *arr = curr_start;
     
+    // Output each line to stdout, freeing mem as we go
     for (int i = 0; i < 2; i++) {
-        str_write(*sq);
+        str_write(*arr_start);
         str_write("\n");
-        do_free(*sq);
-        sq++;
+        do_free(*arr_start);
+        arr_start++;
     }
-    str_write("Done iterating");
-    do_free(queue);
+    do_free(arr);
     
     return 0;
 }
