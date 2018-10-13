@@ -87,7 +87,7 @@ HeapHead *g_heap = NULL;
 #define MIN_BLOCK_SZ (BLOCK_HEAD_SZ + 1)    // Min block sz = header + 1 byte
 #define WORD_SZ sizeof(void*)               // Word size on this architecture
 
-void block_add_tofree(BlockHead *block);
+static void block_add_tofree(BlockHead *block);
 
 
 /* End Definitions ------------------------------------------------------DF */
@@ -153,7 +153,7 @@ static size_t sizet_multiply(size_t a, size_t b) {
 /* -- do_mmap -- */
 // Allocates a new mem space of "size" bytes using the mmap syscall.
 // Returns: On suceess, a ptr to the mapped address space, else NULL.
-void *do_mmap(size_t size) {
+static void *do_mmap(size_t size) {
     int prot = PROT_EXEC | PROT_READ | PROT_WRITE;
     int flags = MAP_PRIVATE | MAP_ANONYMOUS;
     void *result = mmap(NULL, size, prot, flags, -1, 0);
@@ -167,7 +167,7 @@ void *do_mmap(size_t size) {
 /* -- do_munmap -- */
 // Unmaps the memory at "addr" of "size" bytes using the munmap syscall.
 // Returns: Nonzero on success, or -1 on fail.
-int do_munmap(void *addr, size_t size) {
+static int do_munmap(void *addr, size_t size) {
     if (!size)
          return -1;
     return munmap(addr, size);
@@ -175,7 +175,7 @@ int do_munmap(void *addr, size_t size) {
 
 /* -- heap_init -- */
 // Inits the global heap with one free memory block of maximal size.
-void heap_init() {
+static void heap_init() {
     // Allocate the heap and its first free mem block
     size_t first_block_sz = START_HEAP_SZ - HEAP_HEAD_SZ;
     g_heap = do_mmap(START_HEAP_SZ);
@@ -200,7 +200,7 @@ void heap_init() {
 // Adds a new block of at least "size" bytes to the heap. If "size" is less
 //      than START_HEAP_SZ, START_HEAP_SZ bytes is added instead.
 // Returns: On success, a ptr to the new block created, else NULL.
-BlockHead *heap_expand(size_t size) {
+static BlockHead *heap_expand(size_t size) {
     if (size < START_HEAP_SZ)
         size = START_HEAP_SZ;
 
@@ -227,7 +227,7 @@ BlockHead *heap_expand(size_t size) {
 // Repartitions the given block to the size specified, if able.
 // Assumes: The block is "free" and size given includes room for header.
 // Returns: A ptr to the original block, resized or not, depending on if able.
-BlockHead *block_chunk(BlockHead *block, size_t size) {
+static BlockHead *block_chunk(BlockHead *block, size_t size) {
     // Denote split address and resulting sizes
     BlockHead *block2 = (BlockHead*)((char*)block + size);
     size_t b2_size = block->size - size;
@@ -264,7 +264,7 @@ BlockHead *block_getheader(void *ptr) {
 /* -- heap_free -- */
 // Frees all unallocated memory blocks, and then the heap header itself.
 // Assumes: When this function is called, all blocks in the heap are free.
-void heap_free() {
+static void heap_free() {
     if (!g_heap) 
         return;
     
@@ -281,7 +281,7 @@ void heap_free() {
 
 /* -- heap_squeeze -- */
 // Combines the heap's free contiguous memory blocks
-void heap_squeeze() {
+static void heap_squeeze() {
 
     if (!g_heap->first_free)
         return;
@@ -305,7 +305,7 @@ void heap_squeeze() {
 /* -- block_findfree -- */
 // Searches for a mem block >= "size" bytes in the given heap's "free" list.
 // Returns: On success, a ptr to the block found, else NULL;
-void *block_findfree(size_t size) {
+static void *block_findfree(size_t size) {
     BlockHead *curr = g_heap->first_free;
     
     // Find and return the first free mem block of at least the given size
@@ -322,7 +322,7 @@ void *block_findfree(size_t size) {
 /* -- block_add_tofree -- */
 // Adds the given block into the heap's "free" list.
 // Assumes: Block is valid and does not already exist in the "free" list.
-void block_add_tofree(BlockHead *block) {
+static void block_add_tofree(BlockHead *block) {
     // If free list is empty, set us as first and return
     if (!g_heap->first_free) {
         g_heap->first_free = block;
@@ -363,7 +363,7 @@ void block_add_tofree(BlockHead *block) {
 
 /* -- block_rm_fromfree */
 // Removes the given block from the heap's "free" list.
-void block_rm_fromfree(BlockHead *block) {
+static void block_rm_fromfree(BlockHead *block) {
     BlockHead *next = block->next;
     BlockHead *prev = block->prev;
 
@@ -392,7 +392,7 @@ void block_rm_fromfree(BlockHead *block) {
 /* -- do_malloc -- */
 // Allocates "size" bytes of memory to the requester.
 // RETURNS: A ptr to the allocated memory location on success, else NULL.
-void *do_malloc(size_t size) {
+static void *do_malloc(size_t size) {
     if (!size)
         return NULL;
 
@@ -422,17 +422,18 @@ void *do_malloc(size_t size) {
 /* -- do_calloc -- */
 // Allocates an array of "nmemb" elements of "size" bytes, w/each set to 0
 // RETURNS: A ptr to the mem addr on success, else NULL.
-void *do_calloc(size_t nmemb, size_t size) {
+static void *do_calloc(size_t nmemb, size_t size) {
     size_t total_sz = sizet_multiply(nmemb, size);
 
     if (total_sz)
         return mem_set(do_malloc(total_sz), 0, total_sz);
+    exit(-1);
     return NULL;
 }
 
 /* -- do_free -- */
 // Frees the memory space pointed to by ptr iff ptr != NULL
-void do_free(void *ptr) {
+static void do_free(void *ptr) {
     if (!ptr) 
         return;
 
@@ -455,7 +456,7 @@ void do_free(void *ptr) {
 /* -- do_realloc -- */
 // Changes the size of the allocated memory at "ptr" to the given size.
 // Returns: Ptr to the mapped mem address on success, else NULL.
-void *do_realloc(void *ptr, size_t size) {
+static void *do_realloc(void *ptr, size_t size) {
     // If size == 0, free mem at the given ptr
     if (!size) {
         do_free(ptr);
