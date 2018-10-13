@@ -54,6 +54,7 @@
 #include <stddef.h>
 #include <sys/mman.h>
 
+
 /* Predefined helper functions */
 
 // UNUSED
@@ -427,7 +428,7 @@ static void *do_calloc(size_t nmemb, size_t size) {
 
     if (total_sz)
         return mem_set(do_malloc(total_sz), 0, total_sz);
-    exit(-1);
+    
     return NULL;
 }
 
