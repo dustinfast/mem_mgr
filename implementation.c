@@ -403,8 +403,8 @@ static void heap_squeeze() {
             //     block_print(curr->next);
 
 
-            // continue;
-            break;
+            continue;
+            // break;
         }
         curr = curr->next;
     }
