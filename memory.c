@@ -134,7 +134,6 @@ static void __memory_print_debug(const char *fmt, ...) {
 
 void *malloc(size_t size) {
   void *ptr;
-
   __memory_print_debug("TRYING: malloc(%u)\n", size);
   pthread_mutex_lock(&memory_management_lock);
   ptr = __malloc_impl(size);
@@ -172,3 +171,4 @@ void free(void *ptr) {
   pthread_mutex_unlock(&memory_management_lock);
   __memory_print_debug("RESULT: free(%u)\n", ptr);
 }
+
