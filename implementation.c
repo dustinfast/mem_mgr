@@ -57,14 +57,64 @@
 
 /* Predefined helper functions */
 
-// UNUSED
+#include <stdio.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+
+
+static int __memory_print_debug_running = 0;
+static int __memory_print_debug_init_running = 0;
+static int __memory_print_debug_initialized = 0;
+static int __memory_print_debug_do_it = 0;
+
+static pthread_mutex_t memory_management_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void __memory_print_debug_init() {
+  char *env_var;
+  
+  if (__memory_print_debug_init_running) return;
+  __memory_print_debug_init_running = 1;
+  if (!__memory_print_debug_initialized) {
+    __memory_print_debug_do_it = 0;
+    env_var = getenv("MEMORY_DEBUG");
+    if (env_var != NULL) {
+      if (!strcmp(env_var, "yes")) {
+	__memory_print_debug_do_it = 1;
+      }
+    }
+    __memory_print_debug_initialized = 1;
+  }
+  __memory_print_debug_init_running = 0;
+}
+
+static void __memory_print_debug(const char *fmt, ...) {
+  va_list valist;
+
+  if (pthread_mutex_trylock(&print_lock) != 0) return;
+  if (__memory_print_debug_running) {
+    pthread_mutex_unlock(&print_lock);
+    return;
+  }
+  __memory_print_debug_running = 1;
+  __memory_print_debug_init();
+  if (__memory_print_debug_do_it) {
+    va_start(valist, fmt);
+    vfprintf(stderr, fmt, valist);
+    va_end(valist);
+  }
+  __memory_print_debug_running = 0;
+  pthread_mutex_unlock(&print_lock);
+}
 
 /* End of predefined helper functions */
 
 /* Your helper functions */
 /* Begin Definitions ----------------------------------------------------DF */
 
-// Memory Block Header. Servers double duty as a linked list node
+// Memory Block Header. Also serves double duty as a linked list node
 typedef struct BlockHead {
   size_t size;              // Size of the block, with header, in bytes
   char *data_addr;          // Ptr to the block's data field
@@ -177,6 +227,8 @@ static int do_munmap(void *addr, size_t size) {
 /* -- heap_init -- */
 // Inits the global heap with one free memory block of maximal size.
 static void heap_init() {
+        __memory_print_debug("************ INIT \n");
+
     // Allocate the heap and its first free mem block
     size_t first_block_sz = START_HEAP_SZ - HEAP_HEAD_SZ;
     g_heap = do_mmap(START_HEAP_SZ);
@@ -202,8 +254,11 @@ static void heap_init() {
 //      than START_HEAP_SZ, START_HEAP_SZ bytes is added instead.
 // Returns: On success, a ptr to the new block created, else NULL.
 static BlockHead *heap_expand(size_t size) {
+    __memory_print_debug("**** EXPANDING: %u\n", size);
+
     if (size < START_HEAP_SZ)
         size = START_HEAP_SZ;
+    // __memory_print_debug("**** EXPANDING NEW: %u\n", size);
 
     // Allocate the new space as a memory block
     BlockHead *new_block = do_mmap(size);
@@ -229,6 +284,8 @@ static BlockHead *heap_expand(size_t size) {
 // Assumes: The block is "free" and size given includes room for header.
 // Returns: A ptr to the original block, resized or not, depending on if able.
 static BlockHead *block_chunk(BlockHead *block, size_t size) {
+    __memory_print_debug("** IN chunk\n");
+
     // Denote split address and resulting sizes
     BlockHead *block2 = (BlockHead*)((char*)block + size);
     size_t b2_size = block->size - size;
@@ -236,19 +293,28 @@ static BlockHead *block_chunk(BlockHead *block, size_t size) {
     
     if (!block2)
          return NULL;
-    
+
     // Ensure partitions are large enough to be split
     if (b2_size >= MIN_BLOCK_SZ && b1_size >= MIN_BLOCK_SZ) {
+        // __memory_print_debug("**In1 : %u - %u\n", b1_size, b2_size);
+        
         block->size = b1_size;
         block2->size = b2_size;
         block2->data_addr = (char*)block2 + BLOCK_HEAD_SZ;
 
         // Insert the new block between original block and the next (if any)
+        // We do it here rather than with a call to block_add_tofree to avoid
+        // the overhead of finding the insertion point - we already know it.
         block2->next = block->next;
         block->next = block2;
         block2->prev = block;
 
-        block_add_tofree(block2);  // Add the new block to "free" list
+        if (block2->next)
+            block2->next->prev = block2;
+
+        __memory_print_debug("## Chunked b1: %u  b2:%u\n", block->size, block2->size);
+    } else {
+        __memory_print_debug("## Elected not to chunk: %u  from %u\n", b1_size, block->size);
     }
 
     return block;
@@ -266,6 +332,8 @@ BlockHead *block_getheader(void *ptr) {
 // Frees all unallocated memory blocks, and then the heap header itself.
 // Assumes: When this function is called, all blocks in the heap are free.
 static void heap_free() {
+    __memory_print_debug("** IN heap_free\n");
+
     if (!g_heap) 
         return;
     
@@ -283,18 +351,30 @@ static void heap_free() {
 /* -- heap_squeeze -- */
 // Combines the heap's free contiguous memory blocks
 static void heap_squeeze() {
+    __memory_print_debug("** In heap_squeeze\n");
 
     if (!g_heap->first_free)
         return;
 
     BlockHead *curr = g_heap->first_free;
+    __memory_print_debug("** 1a\n");
     while(curr) {
+        __memory_print_debug("** 1b: %u\n", curr->next);
         if (((char*)curr + curr->size) == (char*)curr->next)  {
+            __memory_print_debug("** 2\n");
             curr->size += curr->next->size;
+            __memory_print_debug("** 3\n");
             curr->next = curr->next->next;
+            __memory_print_debug("** 4\n");
             continue;
         }
-        curr = curr->next;
+        if (curr != curr->next)
+            curr = curr->next;
+        else {
+            __memory_print_debug("BRROKE\n");
+            return;
+        }
+
     }
 }
 
@@ -307,14 +387,18 @@ static void heap_squeeze() {
 // Searches for a mem block >= "size" bytes in the given heap's "free" list.
 // Returns: On success, a ptr to the block found, else NULL;
 static void *block_findfree(size_t size) {
+    __memory_print_debug("** IN findfree\n");
+
     BlockHead *curr = g_heap->first_free;
-    
+
     // Find and return the first free mem block of at least the given size
     while (curr)
-        if (curr->size >= size)
+        if (curr->size >= size) {
             return curr;
-        else
+        }
+        else {
             curr = curr->next;
+        }
 
     // Else, if no free block found, expand the heap to get one
     return heap_expand(size);
@@ -324,6 +408,8 @@ static void *block_findfree(size_t size) {
 // Adds the given block into the heap's "free" list.
 // Assumes: Block is valid and does not already exist in the "free" list.
 static void block_add_tofree(BlockHead *block) {
+    __memory_print_debug("** IN add_tofree\n");
+
     // If free list is empty, set us as first and return
     if (!g_heap->first_free) {
         g_heap->first_free = block;
@@ -337,7 +423,7 @@ static void block_add_tofree(BlockHead *block) {
             break;
         else
             curr = curr->next;
-        
+       
     // If no smaller address found, insert ourselves after the head
     if (!curr) { 
         g_heap->first_free->next = block;
@@ -359,12 +445,14 @@ static void block_add_tofree(BlockHead *block) {
         curr->prev = block;
     }
     
-    heap_squeeze();  // Combine any contiguous free blocks
+    // heap_squeeze();  // Combine any contiguous free blocks
 }
 
 /* -- block_rm_fromfree */
 // Removes the given block from the heap's "free" list.
 static void block_rm_fromfree(BlockHead *block) {
+    __memory_print_debug("** IN rm_fromfree\n");
+
     BlockHead *next = block->next;
     BlockHead *prev = block->prev;
 
@@ -394,6 +482,8 @@ static void block_rm_fromfree(BlockHead *block) {
 // Allocates "size" bytes of memory to the requester.
 // RETURNS: A ptr to the allocated memory location on success, else NULL.
 static void *do_malloc(size_t size) {
+    __memory_print_debug("** IN do_malloc\n");
+
     if (!size)
         return NULL;
 
@@ -404,8 +494,8 @@ static void *do_malloc(size_t size) {
     // Make room for block header
     size += BLOCK_HEAD_SZ;
 
-    // Find a free block >= needed size
-    BlockHead *free_block = block_findfree(size);  // Expands heap as needed
+    // Find a free block >= needed size (expanding heap as needed)
+    BlockHead *free_block = block_findfree(size);
 
     if (!free_block)
         return NULL;
@@ -413,7 +503,7 @@ static void *do_malloc(size_t size) {
     // Break up this block if it's larger than needed
     if (size < free_block->size)
         free_block = block_chunk(free_block, size);
-        
+
     // Remove block from the "free" list and return ptr to its data field
     block_rm_fromfree(free_block);
 
