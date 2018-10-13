@@ -69,7 +69,6 @@ static int __memory_print_debug_init_running = 0;
 static int __memory_print_debug_initialized = 0;
 static int __memory_print_debug_do_it = 0;
 
-static pthread_mutex_t memory_management_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void __memory_print_debug_init() {
@@ -124,7 +123,7 @@ typedef struct BlockHead {
 
 // The heap header.
 typedef struct HeapHead {
-    size_t size;            // Total size of heap with header, in bytes
+    size_t size;            // Total sz of heap+blocks+headers, in bytes
     char *start_addr;       // Ptr to first byte of heap
     BlockHead *first_free;  // Ptr to head of the "free" memory list 
 } HeapHead;                 // Memory blocks follows the above 3 bytes
@@ -144,6 +143,29 @@ static void block_add_tofree(BlockHead *block);
 /* End Definitions ------------------------------------------------------DF */
 /* Begin Utility Helpers ------------------------------------------------DF */
 
+// Debug function, prints the given BlockHead's properties.
+void block_print(BlockHead *block) {
+     __memory_print_debug("-----\nBlock\n");
+     __memory_print_debug("Size (bytes): %u\n", block->size);
+     __memory_print_debug("SAddr: %u\n", block);
+     __memory_print_debug("DAddr: %u\n", block->data_addr);
+     __memory_print_debug("Prev: %u\n", block->prev);
+     __memory_print_debug("Next: %u\n", block->next);
+}
+
+// Debug function, prints the global heap's properties.
+void heap_print() {
+     __memory_print_debug("-----\nHeap\n");
+     __memory_print_debug("Size (bytes): %u\n", g_heap->size);
+     __memory_print_debug("Start: %u\n", g_heap->start_addr);
+     __memory_print_debug("FirstFree: %u\n", g_heap->first_free);
+
+    BlockHead *next = g_heap->first_free;
+    while(next) {
+        block_print(next);
+        next = next->next;
+    }
+}
 
 /* -- mem_set -- */
 // Fills the first n bytes at s with c
@@ -296,7 +318,10 @@ static BlockHead *block_chunk(BlockHead *block, size_t size) {
 
     // Ensure partitions are large enough to be split
     if (b2_size >= MIN_BLOCK_SZ && b1_size >= MIN_BLOCK_SZ) {
-        // __memory_print_debug("**In1 : %u - %u\n", b1_size, b2_size);
+        // __memory_print_debug("### Chunking: %u\n", block);
+        
+        // block_print(block);
+        //  __memory_print_debug("\n");
         
         block->size = b1_size;
         block2->size = b2_size;
@@ -305,16 +330,15 @@ static BlockHead *block_chunk(BlockHead *block, size_t size) {
         // Insert the new block between original block and the next (if any)
         // We do it here rather than with a call to block_add_tofree to avoid
         // the overhead of finding the insertion point - we already know it.
+        if (block->next)
+            block->next->prev = block2;
+
         block2->next = block->next;
         block->next = block2;
         block2->prev = block;
 
-        if (block2->next)
-            block2->next->prev = block2;
-
-        __memory_print_debug("## Chunked b1: %u  b2:%u\n", block->size, block2->size);
-    } else {
-        __memory_print_debug("## Elected not to chunk: %u  from %u\n", b1_size, block->size);
+        // block_print(block);
+        // block_print(block2);
     }
 
     return block;
@@ -357,22 +381,26 @@ static void heap_squeeze() {
         return;
 
     BlockHead *curr = g_heap->first_free;
-    __memory_print_debug("** 1a\n");
+    // __memory_print_debug("** 1a\n");
     while(curr) {
-        __memory_print_debug("** 1b: %u\n", curr->next);
+        // __memory_print_debug("** 1b: %u\n", curr->next);
         if (((char*)curr + curr->size) == (char*)curr->next)  {
-            __memory_print_debug("** 2\n");
+            // __memory_print_debug("** 2\n");
             curr->size += curr->next->size;
-            __memory_print_debug("** 3\n");
+            // __memory_print_debug("** 3\n");
             curr->next = curr->next->next;
-            __memory_print_debug("** 4\n");
+            // __memory_print_debug("** 4\n");
             continue;
         }
-        if (curr != curr->next)
+
+        if (curr != curr->next) {
             curr = curr->next;
+        }
         else {
+            // Debug
             __memory_print_debug("BRROKE\n");
-            return;
+            block_print(curr);
+            break;
         }
 
     }
@@ -408,11 +436,12 @@ static void *block_findfree(size_t size) {
 // Adds the given block into the heap's "free" list.
 // Assumes: Block is valid and does not already exist in the "free" list.
 static void block_add_tofree(BlockHead *block) {
-    __memory_print_debug("** IN add_tofree\n");
-
+    // __memory_print_debug("** IN add_tofree\n");
+    // block_print(block);
     // If free list is empty, set us as first and return
     if (!g_heap->first_free) {
         g_heap->first_free = block;
+        // __memory_print_debug("** IN add_tofree 0:\n");
         return;
     }
 
@@ -424,26 +453,46 @@ static void block_add_tofree(BlockHead *block) {
         else
             curr = curr->next;
        
-    // If no smaller address found, insert ourselves after the head
+    // If no smaller addr found, assume head is smaller and insert just after it
     if (!curr) { 
-        g_heap->first_free->next = block;
-        block->prev = g_heap->first_free;
+        // __memory_print_debug("** add_tofree 1:\n");
+
+            if (!(block == g_heap->first_free)) {
+                block->prev = g_heap->first_free;
+                g_heap->first_free->next = block;
+            }
+        // __memory_print_debug("** add_tofree 1b:\n");
+           
+    // block_print(block);
     }
 
     // Else if inserting ourselves before all other blocks
     else if (curr == g_heap->first_free) {
+        // __memory_print_debug("** add_tofree 2:\n");
+
         block->next = curr;
         curr->prev = block;
         g_heap->first_free = block;
+        // __memory_print_debug("** add_tofree 2b:\n");
+
     }
 
     // Else, insert ourselves immediately before the curr block
     else {
-        curr->prev->next = block;
+        // __memory_print_debug("** add_tofree 3:\n");
+
+        if (curr->prev)
+            curr->prev->next = block;
+        // __memory_print_debug("** add_tofree 3b:\n");
         block->prev = curr->prev;
+        // __memory_print_debug("** add_tofree 3c:\n");
         block->next = curr;
+        // __memory_print_debug("** add_tofree 3d:\n");
         curr->prev = block;
+        // __memory_print_debug("** add_tofree 3e:\n");
+
     }
+    
     
     // heap_squeeze();  // Combine any contiguous free blocks
 }
@@ -455,22 +504,32 @@ static void block_rm_fromfree(BlockHead *block) {
 
     BlockHead *next = block->next;
     BlockHead *prev = block->prev;
+    // __memory_print_debug("** 1\n");
 
     // If not at EOL, next node's "prev" becomes the node before us
     if (next)
         next->prev = prev;
+    // __memory_print_debug("** 2\n");
 
     // If we're the head of the list, the next node becomes the new head
-    if (block == g_heap->first_free)
+    if (block == g_heap->first_free) {
+        // __memory_print_debug("** 3\n");
+        if (next)
+            next->prev = NULL;
         g_heap->first_free = next;
-
+        // __memory_print_debug("** 3b\n");
+    } else if (prev && prev->next) {
     // Else, the prev node gets linked to the node ahead of us
-    else
+        // __memory_print_debug("** 4\n");
         prev->next = next;
+        // __memory_print_debug("** 4b\n");
+
+    }
 
     // Clear linked list info - it's no longer relevent
     block->prev = NULL;
     block->next = NULL;
+
 }
 
 
@@ -494,7 +553,7 @@ static void *do_malloc(size_t size) {
     // Make room for block header
     size += BLOCK_HEAD_SZ;
 
-    // Find a free block >= needed size (expanding heap as needed)
+    // Find a free block >= needed size (expands heap as needed)
     BlockHead *free_block = block_findfree(size);
 
     if (!free_block)
