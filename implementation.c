@@ -384,24 +384,54 @@ BlockHead *block_getheader(void *ptr) {
 }
 
 /* -- heap_free -- */
-// Frees all unallocated memory blocks, and then the heap header itself.
-// Assumes: When this function is called, all blocks in the heap are free.
+// Frees all unallocated memory blocks, and then the heap itself.
+// Assumes: When this function is called, all blocks in the heap are free and
+// all contiguous blocks have been combined.
 static void heap_free() {
-    __memory_print_debug("####### IN heap_free\n");
-
     if (!g_heap) 
         return;
+
+    __memory_print_debug("\n####### IN heap_free: heap = %u, sz = %u\n", g_heap, g_heap->size);
+    heap_print();    
     
-    while(g_heap->first_free) {
-        BlockHead *freeme = g_heap->first_free;
-        g_heap->first_free = g_heap->first_free->next;
-        size_t sz_free = freeme->size;
-        do_munmap(freeme, sz_free);
+    // Free each non-contiguous block
+    BlockHead *curr = g_heap->first_free;
+    while(curr && curr->next) {
+        // Advance in list until finding a next block that is non-contiguous
+        if (((char*)curr + curr->size) != (char*)curr->next)  {
+            // Free that next block
+            BlockHead *freeme = curr->next;
+            curr = curr->next->next;
+
+            g_heap->size -= freeme->size;
+            int r1 = do_munmap(freeme, freeme->size);
+            __memory_print_debug("** IN Freeing %u gave %d\n", g_heap, r1);
+
+        } else {
+            curr = curr->next;
+        }
     }
 
-    do_munmap((void*)g_heap, (size_t)g_heap + HEAP_HEAD_SZ);
+    // The only block left should now be the single block the heap started with,
+    // which can be freed all at once with the header
+    size_t freeme_sz = g_heap->size;  // debug
+    int r2 = do_munmap((void*)g_heap, freeme_sz);
+    __memory_print_debug("** Freeing HEAP at %u for sz %u gave %d\n", g_heap, freeme_sz, r2);
+
+    // while(g_heap->first_free) {
+    //     BlockHead *freeme = g_heap->first_free;
+    //     g_heap->first_free = g_heap->first_free->next;
+    //     size_t sz_free = freeme->size;
+    //     int r1 = do_munmap(freeme, sz_free);
+    //     __memory_print_debug("** IN heap_free: Free %u of sz %u gave %d\n", freeme, sz_free, r1);
+    // }
+
+    // size_t freeme_sz = (size_t)g_heap + HEAP_HEAD_SZ;  // debug
+    // int r2 = do_munmap((void*)g_heap, freeme_sz);
+    // __memory_print_debug("** IN heap_free: Free HEAP at %u for sz %u gave %d\n", g_heap, freeme_sz, r2);
+
     g_heap = NULL;
-    __memory_print_debug("####### DONE IN heap_free\n");
+    __memory_print_debug("####### DONE IN heap_free\n\n");
 
 }
 
@@ -412,7 +442,7 @@ static void heap_squeeze() {
     if (!g_heap->first_free)
         return;
 
-    __memory_print_debug("** IN heap_squeeze\n");
+    // __memory_print_debug("** IN heap_squeeze\n");
     // heap_print();
     BlockHead *curr = g_heap->first_free;
     while(curr) {
@@ -429,6 +459,9 @@ static void heap_squeeze() {
             if (curr->next)
                 curr->next->prev = curr;
 
+            if (curr->prev && curr->prev->next != curr)
+                __memory_print_debug("\n!!!!!!!!!\n");
+
             // __memory_print_debug("** B CURR:\n");
             // block_print(curr);
             // __memory_print_debug("** B CURR->Next:\n");
@@ -441,7 +474,7 @@ static void heap_squeeze() {
         }
         curr = curr->next;
     }
-    __memory_print_debug("-- DONE IN heap_squeeze\n");
+    // __memory_print_debug("-- DONE IN heap_squeeze\n");
 
 }
 
@@ -537,7 +570,7 @@ static void block_add_tofree(BlockHead *block) {
     }
     // __memory_print_debug("-- DONE IN add_tofree\n");
     
-    // heap_squeeze();  // Combine any contiguous free blocks
+    heap_squeeze();  // Combine any contiguous free blocks
     
     // __memory_print_debug("-- DONE2 add_tofree\n");
 }
@@ -624,7 +657,7 @@ static void *do_malloc(size_t size) {
 // Allocates an array of "nmemb" elements of "size" bytes, w/each set to 0
 // RETURNS: A ptr to the mem addr on success, else NULL.
 static void *do_calloc(size_t nmemb, size_t size) {
-    // __memory_print_debug("\n++ IN do_calloc\n");
+    __memory_print_debug("\n\n++ IN do_calloc\n");
 
     size_t total_sz = sizet_multiply(nmemb, size);
     
@@ -632,11 +665,11 @@ static void *do_calloc(size_t nmemb, size_t size) {
     
 
     if (total_sz) {
-        //  __memory_print_debug("-- DONE IN do_calloc\n");
-        return __memset(do_malloc(total_sz), 0, total_sz);
+         __memory_print_debug("-- DONE IN do_calloc\n");
+        return mem_set(do_malloc(total_sz), 0, total_sz);
     }
     
-    // __memory_print_debug("-- DONE IN do_calloc: NULL\n");
+    __memory_print_debug("!! FAIL IN do_calloc: \n");
     return NULL;
 }
 
@@ -659,13 +692,13 @@ static void do_free(void *ptr) {
     }
     // __memory_print_debug("** IN do_free: PRE Result = %u free (heapsz-header=%u)\n", free_sz_pre, (g_heap->size - HEAP_HEAD_SZ));
 
+    g_freesz += block_getheader(ptr)->size;  // debug
+    g_allocsz -= block_getheader(ptr)->size;  // debug
+    __memory_print_debug("** IN do_free: Freeing %u (New CURR Free = %u)\n", block_getheader(ptr)->size, g_freesz);
+    
     // Get ptr to header and add to "free" list
     block_add_tofree(block_getheader(ptr));
 
-    g_freesz += block_getheader(ptr)->size;  // debug
-    g_allocsz -= block_getheader(ptr)->size;  // debug
-    // __memory_print_debug("** IN do_free: Freeing %u (New CURR Free = %u)\n", block_getheader(ptr)->size, g_freesz);
-    
     // Determine total size of all free memory blocks, for use below
     size_t free_sz = 0;
     BlockHead *curr = g_heap->first_free;
@@ -675,7 +708,7 @@ static void do_free(void *ptr) {
     }
 
     // __memory_print_debug("** IN do_free Result: %u free (heapsz-header=%u)\n", free_sz, (g_heap->size - HEAP_HEAD_SZ));
-    // __memory_print_debug("** IN do_free G_TOTALS: %u freed. %u still allocated (incl headers)\n", g_freesz, g_allocsz);
+    __memory_print_debug("** IN do_free G_TOTALS: %u freed. %u still allocated (incl headers)\n", g_freesz, g_allocsz);
     // __memory_print_debug("----\n");
 
     // If total sz free == heap size, free the heap - it reinits as needed
@@ -684,7 +717,7 @@ static void do_free(void *ptr) {
         g_freesz = 0;
         heap_free();
     }
-    // __memory_print_debug("\n-- DONE IN do_calloc\n");
+    // __memory_print_debug("\n-- DONE IN do_free\n");
 
 }
 
@@ -716,7 +749,7 @@ static void *do_realloc(void *ptr, size_t size) {
     if (size > old_block->size)
         size = old_block->size;
 
-    __memcpy(new_block, ptr, cpy_len);
+    mem_cpy(new_block, ptr, cpy_len);
     do_free(ptr);
 
     // __memory_print_debug("\n-- DONE IN do_realloc\n");
