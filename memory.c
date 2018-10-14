@@ -92,8 +92,6 @@ static int __memory_print_debug_init_running = 0;
 static int __memory_print_debug_initialized = 0;
 static int __memory_print_debug_do_it = 0;
 
-static size_t g_sz = 0;
-
 static pthread_mutex_t memory_management_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -136,11 +134,11 @@ static void __memory_print_debug(const char *fmt, ...) {
 
 void *malloc(size_t size) {
   void *ptr;
-  __memory_print_debug("TRYING: malloc(%u)\n", size);
+  __memory_print_debug("TRYING: malloc(%u)\n", size+32);
   pthread_mutex_lock(&memory_management_lock);
   ptr = __malloc_impl(size);
   pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("RESULT: malloc(%u) = %u\n\n", size, ptr);
+  __memory_print_debug("RESULT: malloc(%u) = %u\n\n", size+32, ptr);
   return ptr;
 }
 
@@ -159,11 +157,11 @@ void *calloc(size_t nmemb, size_t size) {
 void *realloc(void *old_ptr, size_t size) {
   void *ptr;
 
-  __memory_print_debug("TRYING: realloc(%u, %u)\n", old_ptr, size);
+  __memory_print_debug("TRYING: realloc(%u, %u)\n", old_ptr, size+32);
   pthread_mutex_lock(&memory_management_lock);
   ptr = __realloc_impl(old_ptr, size);
   pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("RESULT: realloc(%u, %u) = %u\n\n", old_ptr, size, ptr);
+  __memory_print_debug("RESULT: realloc(%u, %u) = %u\n\n", old_ptr, size+32, ptr);
   return ptr;
 }
 

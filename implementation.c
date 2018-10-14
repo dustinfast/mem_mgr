@@ -634,8 +634,8 @@ static void *do_malloc(size_t size) {
     
     g_allocsz += free_block->size;  // debug
     // __memory_print_debug("** IN do_malloc: allocated %u\n", free_block->size);
-    __memory_print_debug("** DID malloc - totals: free=%u, allocated=%u\n", g_freesz, g_allocsz);
-    block_print(free_block);  // debug
+    __memory_print_debug("** DID malloc - total allocated=%u\n", g_allocsz);
+    // block_print(free_block);  // debug
     // Remove block from the "free" list and return ptr to its data field
     block_rm_fromfree(free_block);
 
@@ -648,17 +648,9 @@ static void *do_malloc(size_t size) {
 // Allocates an array of "nmemb" elements of "size" bytes, w/each set to 0
 // RETURNS: A ptr to the mem addr on success, else NULL.
 static void *do_calloc(size_t nmemb, size_t size) {
-    __memory_print_debug("++ IN do_calloc\n");
-
+    // __memory_print_debug("++ IN do_calloc\n");
     size_t total_sz = sizet_multiply(nmemb, size);
-    
-    if (total_sz) {
-        //  __memory_print_debug("-- DONE IN do_calloc\n");
-        return mem_set(do_malloc(total_sz), 0, total_sz);
-    }
-    
-    // __memory_print_debug("!! FAIL IN do_calloc: \n");
-    return NULL;
+    return mem_set(do_malloc(total_sz), 0, total_sz);
 }
 
 /* -- do_free -- */
@@ -667,7 +659,7 @@ static void do_free(void *ptr) {
     if (!ptr) 
         return;
     
-    __memory_print_debug("++ IN do_free\n");
+    // __memory_print_debug("++ IN do_free\n");
 
     // debug
     // Determine total size of all free memory blocks, for use below
@@ -677,9 +669,9 @@ static void do_free(void *ptr) {
         free_sz_pre += curr_pre->size;
         curr_pre = curr_pre->next ;
     }
-    __memory_print_debug("** IN do_free: PRE g_allocsz= %u \n", g_allocsz);
+    // __memory_print_debug("** IN do_free: PRE g_allocsz= %u \n", g_allocsz);
 
-    g_freesz += block_getheader(ptr)->size;  // debug
+    // g_freesz += block_getheader(ptr)->size;  // debug
     g_allocsz -= block_getheader(ptr)->size;  // debug
     __memory_print_debug("** IN do_free: Freeing %u \n", block_getheader(ptr)->size);
     
@@ -687,25 +679,24 @@ static void do_free(void *ptr) {
     block_add_tofree(block_getheader(ptr));
 
     // Determine total size of all free memory blocks, for use below
-    size_t free_sz = 0;
-    BlockHead *curr = g_heap->first_free;
-    while(curr) {
-        free_sz += curr->size;
-        curr = curr->next ;
-    }
+    // size_t free_sz = 0;
+    // BlockHead *curr = g_heap->first_free;
+    // while(curr) {
+    //     free_sz += curr->size;
+    //     curr = curr->next ;
+    // }
 
     // __memory_print_debug("** IN do_free Result: %u free (heapsz-header=%u)\n", free_sz, (g_heap->size - HEAP_HEAD_SZ));
-    __memory_print_debug("** IN do_free G_TOTALS: %u freed. %u still allocated\n", g_freesz, g_allocsz);
+    // __memory_print_debug("** IN do_free G_TOTALS: %u freed. %u still allocated\n", g_freesz, g_allocsz);
     // __memory_print_debug("----\n");
 
     // If total sz free == heap size, free the heap - it reinits as needed
-    if (free_sz == g_heap->size - HEAP_HEAD_SZ) {
-        g_allocsz = 0;
-        g_freesz = 0;
-        heap_free();
+    // if (free_sz == g_heap->size - HEAP_HEAD_SZ) {
 
-    }
-    __memory_print_debug("-- DONE IN do_free\n");
+    if(g_allocsz == 0)
+        heap_free();
+    
+    // __memory_print_debug("-- DONE IN do_free\n");
 
 }
 
@@ -713,7 +704,7 @@ static void do_free(void *ptr) {
 // Changes the size of the allocated memory at "ptr" to the given size.
 // Returns: Ptr to the mapped mem address on success, else NULL.
 static void *do_realloc(void *ptr, size_t size) {
-    // __memory_print_debug("++ IN do_realloc\n");
+    __memory_print_debug("++ IN do_realloc\n");
     // If size == 0, free mem at the given ptr
     if (!size) {
         do_free(ptr);
@@ -727,21 +718,22 @@ static void *do_realloc(void *ptr, size_t size) {
     }
 
     // Else, reallocate the mem location
-    BlockHead *new_block = do_malloc(size);
+    char *new_block_data = do_malloc(size);
+    BlockHead *new_block = block_getheader(new_block_data);
     BlockHead *old_block = block_getheader(ptr);
 
-    g_allocsz -= old_block->size;  // debug
-    g_allocsz += new_block->size;  // debug
+    // __memory_print_debug("** IN realloc: old_sz=%u, new_sz=%u\n", old_block->size, new_block->size);
 
     size_t cpy_len = size;
     if (size > old_block->size)
-        copy_len = old_block->size;
+        cpy_len = old_block->size;
 
-    mem_cpy(new_block, ptr, cpy_len);
+    mem_cpy(new_block_data, ptr, cpy_len);
     do_free(ptr);
 
-    // __memory_print_debug("\n-- DONE IN do_realloc\n");
-    return new_block;
+    __memory_print_debug("** DONE in realloc - total allocated=%u\n", g_allocsz);
+    
+    return new_block_data;
 }
 
 /* End malloc, calloc, realloc, free ------------------------------------DF */
