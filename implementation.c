@@ -261,21 +261,34 @@ BlockHead *block_getheader(void *ptr) {
 }
 
 /* -- heap_free -- */
-// Frees all unallocated memory blocks, and then the heap header itself.
-// Assumes: When this function is called, all blocks in the heap are free.
+// Frees all unallocated memory blocks, and then the heap itself.
+// Assumes: When this function is called, all blocks in the heap are free and
+// all contiguous blocks have been combined.
 static void heap_free() {
     if (!g_heap) 
         return;
-    
-    while(g_heap->first_free) {
-        BlockHead *freeme = g_heap->first_free;
-        g_heap->first_free = g_heap->first_free->next;
-        size_t sz_free = freeme->size;
-        do_munmap(freeme, sz_free);
+
+    BlockHead *curr = g_heap->first_free;
+    while(curr && curr->next) {
+        // Advance in list until finding a non-contiguous next block
+        if (((char*)curr + curr->size) != (char*)curr->next)  {
+            // Free that next block
+            BlockHead *freeme = curr->next;
+            curr = curr->next->next;
+
+            g_heap->size -= freeme->size;
+            do_munmap(freeme, freeme->size);
+
+        } else {
+            curr = curr->next;
+        }
     }
 
-    do_munmap((void*)g_heap, (size_t)g_heap + HEAP_HEAD_SZ);
+    // The only block left should now be the single block the heap started with,
+    // which can be freed all at once with the header
+    do_munmap((void*)g_heap, g_heap->size);
     g_heap = NULL;
+
 }
 
 /* -- heap_squeeze -- */
@@ -455,6 +468,7 @@ static void do_free(void *ptr) {
     // If total sz free == heap size, free the heap - it reinits as needed
     if (free_sz == g_heap->size - HEAP_HEAD_SZ)
         heap_free();
+    
 }
 
 /* -- do_realloc -- */
