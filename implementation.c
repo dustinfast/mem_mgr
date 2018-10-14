@@ -491,7 +491,7 @@ static void *do_realloc(void *ptr, size_t size) {
 
     size_t cpy_len = size;
     if (size > old_block->size)
-        size = old_block->size;
+        cpy_len = old_block->size;
 
     mem_cpy(new_block, ptr, cpy_len);
     do_free(ptr);
