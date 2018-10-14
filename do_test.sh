@@ -7,5 +7,6 @@ gcc -fPIC -shared -o memory.so memory.o implementation.o -lpthread
 
 export LD_LIBRARY_PATH=`pwd`:"$LD_LIBRARY_PATH"
 export LD_PRELOAD=`pwd`/memory.so 
-export MEMORY_DEBUG=yes
-ls
+export MEMORY_DEBUG=no
+man open
+

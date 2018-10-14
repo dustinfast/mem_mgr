@@ -80,7 +80,7 @@ static void __memory_print_debug_init() {
     __memory_print_debug_do_it = 0;
     env_var = getenv("MEMORY_DEBUG");
     if (env_var != NULL) {
-      if (!strcmp(env_var, "yes")) {
+      if (!strcmp(env_var, "b") || !strcmp(env_var, "both")) {
 	__memory_print_debug_do_it = 1;
       }
     }
@@ -106,6 +106,33 @@ static void __memory_print_debug(const char *fmt, ...) {
   }
   __memory_print_debug_running = 0;
   pthread_mutex_unlock(&print_lock);
+}
+
+static void *__memset(void *s, int c, size_t n) {
+  unsigned char *p;
+  size_t i;
+
+  if (n == ((size_t) 0)) return s;
+  for (i=(size_t) 0,p=(unsigned char *)s;
+       i<=(n-((size_t) 1));
+       i++,p++) {
+    *p = (unsigned char) c;
+  }
+  return s;
+}
+
+static void *__memcpy(void *dest, const void *src, size_t n) {
+  unsigned char *pd;
+  const unsigned char *ps;
+  size_t i;
+
+  if (n == ((size_t) 0)) return dest;
+  for (i=(size_t) 0,pd=(unsigned char *)dest,ps=(const unsigned char *)src;
+       i<=(n-((size_t) 1));
+       i++,pd++,ps++) {
+    *pd = *ps;
+  }
+  return dest;
 }
 
 /* End of predefined helper functions */
@@ -306,7 +333,7 @@ static BlockHead *heap_expand(size_t size) {
 // Assumes: The block is "free" and size given includes room for header.
 // Returns: A ptr to the original block, resized or not, depending on if able.
 static BlockHead *block_chunk(BlockHead *block, size_t size) {
-    __memory_print_debug("** IN chunk\n");
+    // __memory_print_debug("** IN chunk: b1= %u, b1sz= %u, reqsize= %u\n", block, block->size, size);
 
     // Denote split address and resulting sizes
     BlockHead *block2 = (BlockHead*)((char*)block + size);
@@ -317,9 +344,7 @@ static BlockHead *block_chunk(BlockHead *block, size_t size) {
          return NULL;
 
     // Ensure partitions are large enough to be split
-    if (b2_size >= MIN_BLOCK_SZ && b1_size >= MIN_BLOCK_SZ) {
-        // __memory_print_debug("### Chunking: %u\n", block);
-        
+    if (b2_size >= MIN_BLOCK_SZ && b1_size >= MIN_BLOCK_SZ) {        
         // block_print(block);
         //  __memory_print_debug("\n");
         
@@ -339,7 +364,13 @@ static BlockHead *block_chunk(BlockHead *block, size_t size) {
 
         // block_print(block);
         // block_print(block2);
+        // __memory_print_debug("-- DONE IN chunk: Did b1= %u, b1sz= %u\n", block, block->size, size);
+        // __memory_print_debug("                      b2= %u, b2sz= %u\n", block2, block2->size, size);
     }
+    // else {
+    //     __memory_print_debug("-- DONE IN chunk (did not chunk)\n");
+    // }
+
 
     return block;
 }
@@ -356,7 +387,7 @@ BlockHead *block_getheader(void *ptr) {
 // Frees all unallocated memory blocks, and then the heap header itself.
 // Assumes: When this function is called, all blocks in the heap are free.
 static void heap_free() {
-    __memory_print_debug("** IN heap_free\n");
+    __memory_print_debug("####### IN heap_free\n");
 
     if (!g_heap) 
         return;
@@ -370,6 +401,8 @@ static void heap_free() {
 
     do_munmap((void*)g_heap, (size_t)g_heap + HEAP_HEAD_SZ);
     g_heap = NULL;
+    __memory_print_debug("####### DONE IN heap_free\n");
+
 }
 
 /* -- heap_squeeze -- */
@@ -379,7 +412,7 @@ static void heap_squeeze() {
     if (!g_heap->first_free)
         return;
 
-    __memory_print_debug("** In heap_squeeze\n");
+    __memory_print_debug("** IN heap_squeeze\n");
     // heap_print();
     BlockHead *curr = g_heap->first_free;
     while(curr) {
@@ -408,6 +441,8 @@ static void heap_squeeze() {
         }
         curr = curr->next;
     }
+    __memory_print_debug("-- DONE IN heap_squeeze\n");
+
 }
 
 
@@ -419,19 +454,23 @@ static void heap_squeeze() {
 // Searches for a mem block >= "size" bytes in the given heap's "free" list.
 // Returns: On success, a ptr to the block found, else NULL;
 static void *block_findfree(size_t size) {
-    __memory_print_debug("** IN findfree\n");
+    // __memory_print_debug("** IN findfree\n");
 
     BlockHead *curr = g_heap->first_free;
 
     // Find and return the first free mem block of at least the given size
-    while (curr)
+    while (curr) {
         if (curr->size >= size) {
+        // __memory_print_debug("-- DONE IN findfree (no expand)\n");
             return curr;
         }
         else {
             curr = curr->next;
         }
+    }
 
+    // __memory_print_debug("-- DONE IN findfree (w/expand)\n");
+    
     // Else, if no free block found, expand the heap to get one
     return heap_expand(size);
 }
@@ -440,14 +479,12 @@ static void *block_findfree(size_t size) {
 // Adds the given block into the heap's "free" list.
 // Assumes: Block is valid and does not already exist in the "free" list.
 static void block_add_tofree(BlockHead *block) {
-    __memory_print_debug("** IN add_tofree\n");
+    // __memory_print_debug("** IN add_tofree\n");
     // block_print(block);
     // If free list is empty, set us as first and return
     if (!g_heap->first_free) {
         g_heap->first_free = block;
-        // __memory_print_debug("** IN add_tofree 0:\n");
-        __memory_print_debug("** DONE add_tofree\n");
-
+        // __memory_print_debug("-- DONE IN add_tofree 0\n");
         return;
     }
 
@@ -498,16 +535,17 @@ static void block_add_tofree(BlockHead *block) {
         // __memory_print_debug("** add_tofree 3e:\n");
 
     }
-    __memory_print_debug("** DONE add_tofree\n");
+    // __memory_print_debug("-- DONE IN add_tofree\n");
     
-    heap_squeeze();  // Combine any contiguous free blocks
-    __memory_print_debug("** DONE2 add_tofree\n");
+    // heap_squeeze();  // Combine any contiguous free blocks
+    
+    // __memory_print_debug("-- DONE2 add_tofree\n");
 }
 
 /* -- block_rm_fromfree */
 // Removes the given block from the heap's "free" list.
 static void block_rm_fromfree(BlockHead *block) {
-    __memory_print_debug("** IN rm_fromfree\n");
+    // __memory_print_debug("** IN rm_fromfree\n");
 
     BlockHead *next = block->next;
     BlockHead *prev = block->prev;
@@ -536,7 +574,7 @@ static void block_rm_fromfree(BlockHead *block) {
     // Clear linked list info - it's no longer relevent
     block->prev = NULL;
     block->next = NULL;
-    __memory_print_debug("** DONE IN rm_fromfree\n");
+    // __memory_print_debug("-- DONE IN rm_fromfree\n");
 
 }
 
@@ -546,10 +584,11 @@ static void block_rm_fromfree(BlockHead *block) {
 
 
 /* -- do_malloc -- */
+static size_t g_allocsz = 0;
 // Allocates "size" bytes of memory to the requester.
 // RETURNS: A ptr to the allocated memory location on success, else NULL.
 static void *do_malloc(size_t size) {
-    // __memory_print_debug("** IN do_malloc\n");
+    // __memory_print_debug("\n++ IN do_malloc\n");
 
     if (!size)
         return NULL;
@@ -570,9 +609,13 @@ static void *do_malloc(size_t size) {
     // Break up this block if it's larger than needed
     if (size < free_block->size)
         free_block = block_chunk(free_block, size);
+    
+    g_allocsz += free_block->size;  // debug
+    // __memory_print_debug("** IN do_malloc: allocated %u\n", free_block->size);
 
     // Remove block from the "free" list and return ptr to its data field
     block_rm_fromfree(free_block);
+    // __memory_print_debug("-- DONE IN do_malloc\n");
 
     return free_block->data_addr;
 }
@@ -581,23 +624,48 @@ static void *do_malloc(size_t size) {
 // Allocates an array of "nmemb" elements of "size" bytes, w/each set to 0
 // RETURNS: A ptr to the mem addr on success, else NULL.
 static void *do_calloc(size_t nmemb, size_t size) {
-    size_t total_sz = sizet_multiply(nmemb, size);
+    // __memory_print_debug("\n++ IN do_calloc\n");
 
-    if (total_sz)
-        return mem_set(do_malloc(total_sz), 0, total_sz);
+    size_t total_sz = sizet_multiply(nmemb, size);
     
+    g_allocsz += total_sz;  // debug
+    
+
+    if (total_sz) {
+        //  __memory_print_debug("-- DONE IN do_calloc\n");
+        return __memset(do_malloc(total_sz), 0, total_sz);
+    }
+    
+    // __memory_print_debug("-- DONE IN do_calloc: NULL\n");
     return NULL;
 }
 
 /* -- do_free -- */
 // Frees the memory space pointed to by ptr iff ptr != NULL
+static size_t g_freesz = 0;
 static void do_free(void *ptr) {
     if (!ptr) 
         return;
+    
+    // __memory_print_debug("\n++ IN do_free\n");
+
+    // debug
+    // Determine total size of all free memory blocks, for use below
+    size_t free_sz_pre = 0;
+    BlockHead *curr_pre = g_heap->first_free;
+    while(curr_pre) {
+        free_sz_pre += curr_pre->size;
+        curr_pre = curr_pre->next ;
+    }
+    // __memory_print_debug("** IN do_free: PRE Result = %u free (heapsz-header=%u)\n", free_sz_pre, (g_heap->size - HEAP_HEAD_SZ));
 
     // Get ptr to header and add to "free" list
     block_add_tofree(block_getheader(ptr));
 
+    g_freesz += block_getheader(ptr)->size;  // debug
+    g_allocsz -= block_getheader(ptr)->size;  // debug
+    // __memory_print_debug("** IN do_free: Freeing %u (New CURR Free = %u)\n", block_getheader(ptr)->size, g_freesz);
+    
     // Determine total size of all free memory blocks, for use below
     size_t free_sz = 0;
     BlockHead *curr = g_heap->first_free;
@@ -606,15 +674,25 @@ static void do_free(void *ptr) {
         curr = curr->next ;
     }
 
+    // __memory_print_debug("** IN do_free Result: %u free (heapsz-header=%u)\n", free_sz, (g_heap->size - HEAP_HEAD_SZ));
+    // __memory_print_debug("** IN do_free G_TOTALS: %u freed. %u still allocated (incl headers)\n", g_freesz, g_allocsz);
+    // __memory_print_debug("----\n");
+
     // If total sz free == heap size, free the heap - it reinits as needed
-    if (free_sz == g_heap->size - HEAP_HEAD_SZ)
+    if (free_sz == g_heap->size - HEAP_HEAD_SZ) {
+        g_allocsz = 0;
+        g_freesz = 0;
         heap_free();
+    }
+    // __memory_print_debug("\n-- DONE IN do_calloc\n");
+
 }
 
 /* -- do_realloc -- */
 // Changes the size of the allocated memory at "ptr" to the given size.
 // Returns: Ptr to the mapped mem address on success, else NULL.
 static void *do_realloc(void *ptr, size_t size) {
+    // __memory_print_debug("\n++ IN do_realloc\n");
     // If size == 0, free mem at the given ptr
     if (!size) {
         do_free(ptr);
@@ -622,20 +700,26 @@ static void *do_realloc(void *ptr, size_t size) {
     }
     
     // Else if ptr is NULL, do an malloc(size)
-    if (!ptr)
+    if (!ptr) {
+        // __memory_print_debug("\n-- DONE IN do_realloc\n");
         return do_malloc(size);
-    
+    }
+
     // Else, reallocate the mem location
     BlockHead *new_block = do_malloc(size);
     BlockHead *old_block = block_getheader(ptr);
+
+    g_allocsz -= old_block->size;  // debug
+    g_allocsz += new_block->size;  // debug
 
     size_t cpy_len = size;
     if (size > old_block->size)
         size = old_block->size;
 
-    mem_cpy(new_block, ptr, cpy_len);
+    __memcpy(new_block, ptr, cpy_len);
     do_free(ptr);
 
+    // __memory_print_debug("\n-- DONE IN do_realloc\n");
     return new_block;
 }
 
