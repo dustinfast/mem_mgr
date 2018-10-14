@@ -92,6 +92,8 @@ static int __memory_print_debug_init_running = 0;
 static int __memory_print_debug_initialized = 0;
 static int __memory_print_debug_do_it = 0;
 
+static size_t g_sz = 0;
+
 static pthread_mutex_t memory_management_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -104,7 +106,7 @@ static void __memory_print_debug_init() {
     __memory_print_debug_do_it = 0;
     env_var = getenv("MEMORY_DEBUG");
     if (env_var != NULL) {
-      if (!strcmp(env_var, "yes")) {
+      if (!strcmp(env_var, "a") || !strcmp(env_var, "both")) {      
 	__memory_print_debug_do_it = 1;
       }
     }
@@ -148,8 +150,9 @@ void *calloc(size_t nmemb, size_t size) {
   __memory_print_debug("TRYING: calloc(%u, %u)\n", nmemb, size);
   pthread_mutex_lock(&memory_management_lock);
   ptr = __calloc_impl(nmemb, size);
+  
   pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("RESULT: calloc(%u, %u) = %u\n", nmemb, size, ptr);
+  // __memory_print_debug("RESULT: calloc(%u, %u) = %u\n", nmemb, size, ptr);
   return ptr;
 }
 
@@ -160,7 +163,7 @@ void *realloc(void *old_ptr, size_t size) {
   pthread_mutex_lock(&memory_management_lock);
   ptr = __realloc_impl(old_ptr, size);
   pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("RESULT: realloc(%u, %u) = %u\n", old_ptr, size, ptr);
+  // __memory_print_debug("RESULT: realloc(%u, %u) = %u\n", old_ptr, size, ptr);
   return ptr;
 }
 
@@ -169,6 +172,6 @@ void free(void *ptr) {
   pthread_mutex_lock(&memory_management_lock);
   __free_impl(ptr);
   pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("RESULT: free(%u)\n", ptr);
+  // __memory_print_debug("RESULT: free(%u)\n", ptr);
 }
 
