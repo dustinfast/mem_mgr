@@ -140,7 +140,7 @@ void *malloc(size_t size) {
   pthread_mutex_lock(&memory_management_lock);
   ptr = __malloc_impl(size);
   pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("RESULT: malloc(%u) = %u\n", size, ptr);
+  __memory_print_debug("RESULT: malloc(%u) = %u\n\n", size, ptr);
   return ptr;
 }
 
@@ -152,7 +152,7 @@ void *calloc(size_t nmemb, size_t size) {
   ptr = __calloc_impl(nmemb, size);
   
   pthread_mutex_unlock(&memory_management_lock);
-  // __memory_print_debug("RESULT: calloc(%u, %u) = %u\n", nmemb, size, ptr);
+  __memory_print_debug("RESULT: calloc(%u, %u) = %u\n\n", nmemb, size, ptr);
   return ptr;
 }
 
@@ -163,7 +163,7 @@ void *realloc(void *old_ptr, size_t size) {
   pthread_mutex_lock(&memory_management_lock);
   ptr = __realloc_impl(old_ptr, size);
   pthread_mutex_unlock(&memory_management_lock);
-  // __memory_print_debug("RESULT: realloc(%u, %u) = %u\n", old_ptr, size, ptr);
+  __memory_print_debug("RESULT: realloc(%u, %u) = %u\n\n", old_ptr, size, ptr);
   return ptr;
 }
 
@@ -172,6 +172,6 @@ void free(void *ptr) {
   pthread_mutex_lock(&memory_management_lock);
   __free_impl(ptr);
   pthread_mutex_unlock(&memory_management_lock);
-  // __memory_print_debug("RESULT: free(%u)\n", ptr);
+  __memory_print_debug("RESULT: free(%u)\n\n", ptr);
 }
 
