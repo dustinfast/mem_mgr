@@ -2,6 +2,12 @@
 
 A memory management wrapper replacing the c stdlib `malloc`, `calloc`, `realloc`, and `free` functions.
 
+Credits:
+
+* __implementation.c__: Dustin Fast
+* __memlib.c__: Dustin Fast
+* __memory.c__: Dr. Christopher Lauter (University of Alaska)
+
 ## Usage
 
 From the terminal, enter the following -
@@ -22,7 +28,7 @@ Other applications may now be run as they normally would, and their calls to `ma
 
 ## Memory Block and Heap Structure
 
-Our heap and memory blocks are structured like so:
+Hheap and memory blocks have the folllowing structure (see `implementation.c` for more detailed information)
 ```
  Memory Block       Memory Block           Heap
 (Unallocated)       (Allocated)       --------------(*c)
@@ -59,7 +65,7 @@ The kind of list to use (singly-linked/doubly-linked) as well as the structure o
 
 ## Test Cases
 
-The following application was used to prove functionality of the wrapper's `do_malloc()`, `do_calloc()`, `do_realloc()`, and `do_free()` 
+The following test application (in `memlib.c`) was used to prove functionality of the wrapper's `do_malloc()`, `do_calloc()`, `do_realloc()`, and `do_free()` 
 
 ``` c
 int main(int argc, char **argv) {
