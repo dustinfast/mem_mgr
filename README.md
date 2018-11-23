@@ -1,10 +1,10 @@
-# Homework 3: 
+# mem_mgr 
 
 A memory management wrapper replacing the c stdlib `malloc`, `calloc`, `realloc`, and `free` functions.
 
 ## Usage
 
-From the terminal, do the following -
+From the terminal, enter the following -
 
 ``` sh
 # Compile the memory manager's objects
@@ -18,7 +18,7 @@ export LD_PRELOAD=`pwd`/memory.so
 export MEMORY_DEBUG=no  # Alternately, 'yes' enables debug statements
 ```
 
-Other applications may now be run as they normally would - their calls to `malloc`, `calloc`, `realloc`, and `free` will now use the wrapper.
+Other applications may now be run as they normally would, and their calls to `malloc`, `calloc`, `realloc`, and `free` will now use the wrapper's replacements functions.
 
 ## Memory Block and Heap Structure
 
